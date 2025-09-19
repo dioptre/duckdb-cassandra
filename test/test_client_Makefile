@@ -1,0 +1,14 @@
+CXX = g++
+CXXFLAGS = -std=c++17 -I./src/include -I./external/datastax-cpp-driver/include -I/opt/homebrew/include
+LDFLAGS = -L/opt/homebrew/lib -lcassandra -luv -lssl -lcrypto -lz
+
+SOURCES = test_cassandra_client.cpp src/cassandra_client.cpp src/cassandra_utils.cpp src/cassandra_types.cpp
+TARGET = test_cassandra_client
+
+$(TARGET): $(SOURCES)
+	$(CXX) $(CXXFLAGS) -o $(TARGET) $(SOURCES) $(LDFLAGS)
+
+clean:
+	rm -f $(TARGET)
+
+.PHONY: clean

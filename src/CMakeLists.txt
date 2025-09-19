@@ -1,0 +1,13 @@
+set(EXTENSION_SOURCES
+    cassandra_extension.cpp
+    cassandra_client.cpp
+    cassandra_scan.cpp
+    cassandra_attach.cpp
+    cassandra_utils.cpp
+    cassandra_settings.cpp
+    cassandra_types.cpp
+    storage/cassandra_catalog.cpp
+    storage/cassandra_schema_entry.cpp
+    storage/cassandra_table_entry.cpp
+    storage/cassandra_transaction.cpp
+)

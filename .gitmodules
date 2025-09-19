@@ -6,3 +6,9 @@
 	path = extension-ci-tools
 	url = https://github.com/duckdb/extension-ci-tools
 	branch = main
+[submodule "external/datastax-cpp-driver"]
+	path = external/datastax-cpp-driver
+	url = https://github.com/datastax/cpp-driver.git
+[submodule "external/duckdb"]
+	path = external/duckdb
+	url = https://github.com/duckdb/duckdb.git

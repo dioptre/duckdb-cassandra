@@ -1,4 +1,5 @@
 #include "cassandra_table_entry.hpp"
+#include "cassandra_catalog.hpp"
 #include "../include/cassandra_scan.hpp"
 
 namespace duckdb {
@@ -17,7 +18,10 @@ TableFunction CassandraTableEntry::GetScanFunction(ClientContext &context, uniqu
     // Create bind data for this specific table
     auto cassandra_bind_data = make_uniq<CassandraScanBindData>();
     cassandra_bind_data->table_ref = table_ref;
-    cassandra_bind_data->config = CassandraConfig(); // Use default config for now
+    
+    // Get the connection config from the catalog
+    auto &cassandra_catalog = catalog.Cast<CassandraCatalog>();
+    cassandra_bind_data->config = cassandra_catalog.config;
     
     bind_data = std::move(cassandra_bind_data);
     

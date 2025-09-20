@@ -4,6 +4,9 @@
 #include "duckdb/function/table_function.hpp"
 #include "cassandra_utils.hpp"
 
+// Forward declaration
+namespace duckdb { namespace cassandra { class CassandraClient; } }
+
 namespace duckdb {
 namespace cassandra {
 

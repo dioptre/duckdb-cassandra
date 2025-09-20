@@ -54,8 +54,10 @@ public:
     bool InMemory() override;
     string GetDBPath() override;
 
+public:
+    CassandraConfig config; // Make config public so table entries can access it
+    
 private:
-    CassandraConfig config;
     unique_ptr<class CassandraClient> client;
 };
 

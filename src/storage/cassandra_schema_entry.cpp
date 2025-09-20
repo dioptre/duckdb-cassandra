@@ -1,5 +1,7 @@
 #include "cassandra_schema_entry.hpp"
 #include "cassandra_table_entry.hpp"
+#include "cassandra_catalog.hpp"
+#include "../include/cassandra_client.hpp"
 #include "duckdb/parser/parsed_data/create_table_info.hpp"
 
 namespace duckdb {
@@ -94,11 +96,71 @@ optional_ptr<CatalogEntry> CassandraSchemaEntry::LookupEntry(CatalogTransaction 
     table_info.table = entry_name;
     table_info.schema = keyspace_ref.keyspace_name;
     
-    // Add some basic columns so SELECT * works
-    table_info.columns.AddColumn(ColumnDefinition("eid", LogicalType::VARCHAR));
-    table_info.columns.AddColumn(ColumnDefinition("created", LogicalType::VARCHAR));
-    table_info.columns.AddColumn(ColumnDefinition("ename", LogicalType::VARCHAR));
-    table_info.columns.AddColumn(ColumnDefinition("score", LogicalType::VARCHAR));
+    // Get REAL columns from Cassandra dynamically
+    try {
+        auto &cassandra_catalog = catalog.Cast<CassandraCatalog>();
+        auto client = make_uniq<CassandraClient>(cassandra_catalog.config);
+        
+        string schema_query = "SELECT * FROM " + keyspace_ref.keyspace_name + "." + entry_name + " LIMIT 1";
+        auto session = client->GetSession();
+        CassStatement* statement = cass_statement_new(schema_query.c_str(), 0);
+        CassFuture* result_future = cass_session_execute(session, statement);
+        
+        if (cass_future_error_code(result_future) == CASS_OK) {
+            const CassResult* result = cass_future_get_result(result_future);
+            size_t column_count = cass_result_column_count(result);
+            
+            std::cout << "DEBUG: Found " << column_count << " columns for table " << entry_name << std::endl;
+            
+            for (size_t i = 0; i < column_count; i++) {
+                const char* column_name;
+                size_t name_length;
+                cass_result_column_name(result, i, &column_name, &name_length);
+                CassValueType column_type = cass_result_column_type(result, i);
+                
+                string col_name(column_name, name_length);
+                
+                // Map Cassandra types to DuckDB types
+                LogicalType duckdb_type;
+                switch (column_type) {
+                    case CASS_VALUE_TYPE_UUID:
+                    case CASS_VALUE_TYPE_TIMEUUID:
+                        duckdb_type = LogicalType::UUID;
+                        break;
+                    case CASS_VALUE_TYPE_TIMESTAMP:
+                        duckdb_type = LogicalType::TIMESTAMP_TZ;
+                        break;
+                    case CASS_VALUE_TYPE_DOUBLE:
+                        duckdb_type = LogicalType::DOUBLE;
+                        break;
+                    case CASS_VALUE_TYPE_INT:
+                        duckdb_type = LogicalType::INTEGER;
+                        break;
+                    case CASS_VALUE_TYPE_BIGINT:
+                        duckdb_type = LogicalType::BIGINT;
+                        break;
+                    default:
+                        duckdb_type = LogicalType::VARCHAR;
+                        break;
+                }
+                
+                table_info.columns.AddColumn(ColumnDefinition(col_name, duckdb_type));
+            }
+            
+            cass_result_free(result);
+        }
+        
+        cass_future_free(result_future);
+        cass_statement_free(statement);
+        
+    } catch (const std::exception& e) {
+        std::cout << "DEBUG: Error getting schema, using fallback: " << e.what() << std::endl;
+        // Fallback to basic columns
+        table_info.columns.AddColumn(ColumnDefinition("eid", LogicalType::UUID));
+        table_info.columns.AddColumn(ColumnDefinition("created", LogicalType::TIMESTAMP_TZ));
+        table_info.columns.AddColumn(ColumnDefinition("ename", LogicalType::VARCHAR));
+        table_info.columns.AddColumn(ColumnDefinition("score", LogicalType::DOUBLE));
+    }
     
     std::cout << "DEBUG: Creating table entry for: " << table_ref.GetQualifiedName() << std::endl;
     return make_uniq<CassandraTableEntry>(catalog, *this, table_info, table_ref).release();

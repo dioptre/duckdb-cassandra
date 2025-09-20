@@ -14,9 +14,15 @@ unique_ptr<BaseStatistics> CassandraTableEntry::GetStatistics(ClientContext &con
 }
 
 TableFunction CassandraTableEntry::GetScanFunction(ClientContext &context, unique_ptr<FunctionData> &bind_data) {
-    // TODO: Return scan function for this table
-    auto scan_function = CassandraScanFunction();
-    return scan_function;
+    // Create bind data for this specific table
+    auto cassandra_bind_data = make_uniq<CassandraScanBindData>();
+    cassandra_bind_data->table_ref = table_ref;
+    cassandra_bind_data->config = CassandraConfig(); // Use default config for now
+    
+    bind_data = std::move(cassandra_bind_data);
+    
+    // Return the cassandra scan function
+    return CassandraScanFunction();
 }
 
 } // namespace cassandra

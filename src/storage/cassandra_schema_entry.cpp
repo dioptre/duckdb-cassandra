@@ -8,18 +8,19 @@ CassandraSchemaEntry::CassandraSchemaEntry(Catalog &catalog, CreateSchemaInfo &i
     : SchemaCatalogEntry(catalog, info), keyspace_ref(keyspace_ref) {
 }
 
+void CassandraSchemaEntry::TryDropEntry(ClientContext &context, CatalogType type, const string &name) {
+    // Minimal implementation
+}
+
 optional_ptr<CatalogEntry> CassandraSchemaEntry::CreateTable(CatalogTransaction transaction, BoundCreateTableInfo &info) {
-    // TODO: Implement table creation
-    throw NotImplementedException("CreateTable not yet implemented in schema entry");
+    throw NotImplementedException("CreateTable not yet implemented");
 }
 
 optional_ptr<CatalogEntry> CassandraSchemaEntry::GetTable(CatalogTransaction transaction, const string &name,
                                                            OnEntryNotFound if_not_found,
                                                            QueryErrorContext error_context) {
-    // TODO: Check if table exists and return table entry
     auto table_ref = CassandraTableRef{keyspace_ref.keyspace_name, name};
     
-    // For now, always return a basic table entry
     CreateTableInfo table_info;
     table_info.table = name;
     table_info.schema = keyspace_ref.keyspace_name;
@@ -28,8 +29,7 @@ optional_ptr<CatalogEntry> CassandraSchemaEntry::GetTable(CatalogTransaction tra
 }
 
 void CassandraSchemaEntry::DropTable(CatalogTransaction transaction, DropInfo &info) {
-    // TODO: Implement table drop
-    throw NotImplementedException("DropTable not yet implemented in schema entry");
+    throw NotImplementedException("DropTable not yet implemented");
 }
 
 } // namespace cassandra

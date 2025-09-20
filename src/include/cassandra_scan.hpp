@@ -2,9 +2,16 @@
 
 #include "duckdb.hpp"
 #include "duckdb/function/table_function.hpp"
+#include "cassandra_utils.hpp"
 
 namespace duckdb {
 namespace cassandra {
+
+struct CassandraScanBindData : public TableFunctionData {
+    CassandraTableRef table_ref;
+    CassandraConfig config;
+    string filter_condition;
+};
 
 class CassandraScanFunction : public TableFunction {
 public:

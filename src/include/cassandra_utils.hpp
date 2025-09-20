@@ -44,18 +44,17 @@ struct CassandraTableRef {
     }
 };
 
-// Storage extension temporarily removed for simple scan function
-// class CassandraStorageExtension : public StorageExtension {
-// public:
-//     CassandraStorageExtension() = default;
-//     
-//     unique_ptr<Catalog> CreateCatalog(AttachedDatabase &db, const string &name,
-//                                       AttachInfo &info, AccessMode access_mode);
-//     
-//     string GetDatabaseType() {
-//         return "cassandra";
-//     }
-// };
+// Attach function for storage extension
+unique_ptr<Catalog> CassandraAttachCatalog(optional_ptr<StorageExtensionInfo> storage_info, ClientContext &context,
+                                            AttachedDatabase &db, const string &name, AttachInfo &info, AttachOptions &options);
+
+class CassandraStorageExtension : public StorageExtension {
+public:
+    CassandraStorageExtension() {
+        attach = CassandraAttachCatalog;
+        create_transaction_manager = nullptr;
+    }
+};
 
 } // namespace cassandra  
 } // namespace duckdb

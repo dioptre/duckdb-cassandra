@@ -11,13 +11,15 @@ class CassandraSchemaEntry : public SchemaCatalogEntry {
 public:
     CassandraSchemaEntry(Catalog &catalog, CreateSchemaInfo &info, const CassandraKeyspaceRef &keyspace_ref);
 
-    optional_ptr<CatalogEntry> CreateTable(CatalogTransaction transaction, BoundCreateTableInfo &info) override;
+    optional_ptr<CatalogEntry> CreateTable(CatalogTransaction transaction, BoundCreateTableInfo &info);
     
     optional_ptr<CatalogEntry> GetTable(CatalogTransaction transaction, const string &name,
                                         OnEntryNotFound if_not_found,
-                                        QueryErrorContext error_context = QueryErrorContext()) override;
+                                        QueryErrorContext error_context = QueryErrorContext());
 
-    void DropTable(CatalogTransaction transaction, DropInfo &info) override;
+    void DropTable(CatalogTransaction transaction, DropInfo &info);
+    
+    void TryDropEntry(ClientContext &context, CatalogType type, const string &name) override;
 
 private:
     CassandraKeyspaceRef keyspace_ref;

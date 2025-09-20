@@ -68,12 +68,11 @@ bool CassandraConfig::HasSSLConfig() const {
     return use_ssl && (!cert_file_hex.empty() || !user_cert_hex.empty());
 }
 
-// Storage extension temporarily removed for simplicity
-// unique_ptr<Catalog> CassandraStorageExtension::CreateCatalog(AttachedDatabase &db, const string &name,
-//                                                             AttachInfo &info, AccessMode access_mode) {
-//     auto config = CassandraConfig::FromConnectionString(info.path);
-//     return make_uniq<CassandraCatalog>(db, name, info.path, access_mode, config);
-// }
+unique_ptr<Catalog> CassandraAttachCatalog(optional_ptr<StorageExtensionInfo> storage_info, ClientContext &context,
+                                            AttachedDatabase &db, const string &name, AttachInfo &info, AttachOptions &options) {
+    auto config = CassandraConfig::FromConnectionString(info.path);
+    return make_uniq<CassandraCatalog>(db, name, info.path, options.access_mode, config);
+}
 
 } // namespace cassandra
 } // namespace duckdb

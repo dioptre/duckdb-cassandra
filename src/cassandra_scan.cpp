@@ -8,11 +8,7 @@
 namespace duckdb {
 namespace cassandra {
 
-struct CassandraScanBindData : public TableFunctionData {
-    CassandraTableRef table_ref;
-    CassandraConfig config;
-    string filter_condition;
-};
+// CassandraScanBindData is now defined in cassandra_scan.hpp
 
 struct CassandraScanGlobalState : public GlobalTableFunctionState {
     unique_ptr<CassandraClient> client;
@@ -328,20 +324,102 @@ CassandraScanFunction::CassandraScanFunction()
     named_parameters["usercert"] = LogicalType::VARCHAR;
 }
 
+// Custom query function implementation
+static unique_ptr<FunctionData> CassandraQueryBind(ClientContext &context, TableFunctionBindInput &input,
+                                                    vector<LogicalType> &return_types, vector<string> &names) {
+    auto bind_data = make_uniq<CassandraScanBindData>();
+    
+    if (input.inputs.empty()) {
+        throw BinderException("cassandra_query requires a CQL query string");
+    }
+    
+    auto query = StringValue::Get(input.inputs[0]);
+    bind_data->filter_condition = query; // Store the custom query
+    
+    // Set default configuration
+    bind_data->config = CassandraConfig();
+    
+    // Parse named parameters for connection
+    for (auto &kv : input.named_parameters) {
+        auto lower_key = StringUtil::Lower(kv.first);
+        if (lower_key == "contact_points" || lower_key == "host") {
+            bind_data->config.contact_points = StringValue::Get(kv.second);
+        } else if (lower_key == "port") {
+            bind_data->config.port = IntegerValue::Get(kv.second);
+        }
+    }
+    
+    // For custom queries, execute to get schema
+    try {
+        auto client = make_uniq<CassandraClient>(bind_data->config);
+        auto session = client->GetSession();
+        CassStatement* statement = cass_statement_new(query.c_str(), 0);
+        CassFuture* result_future = cass_session_execute(session, statement);
+        
+        if (cass_future_error_code(result_future) == CASS_OK) {
+            const CassResult* result = cass_future_get_result(result_future);
+            size_t column_count = cass_result_column_count(result);
+            
+            for (size_t i = 0; i < column_count; i++) {
+                const char* column_name;
+                size_t name_length;
+                cass_result_column_name(result, i, &column_name, &name_length);
+                
+                string col_name(column_name, name_length);
+                names.push_back(col_name);
+                return_types.push_back(LogicalType::VARCHAR);
+            }
+            
+            cass_result_free(result);
+        }
+        
+        cass_future_free(result_future);
+        cass_statement_free(statement);
+        
+    } catch (const std::exception& e) {
+        names.push_back("result");
+        return_types.push_back(LogicalType::VARCHAR);
+    }
+    
+    return std::move(bind_data);
+}
+
+static unique_ptr<GlobalTableFunctionState> CassandraQueryInitGlobal(ClientContext &context, TableFunctionInitInput &input) {
+    auto bind_data = input.bind_data->Cast<CassandraScanBindData>();
+    auto result = make_uniq<CassandraScanGlobalState>();
+    
+    result->client = make_uniq<CassandraClient>(bind_data.config);
+    
+    // Execute the custom CQL query
+    string query = bind_data.filter_condition;
+    
+    auto session = result->client->GetSession();
+    CassStatement* statement = cass_statement_new(query.c_str(), 0);
+    CassFuture* query_future = cass_session_execute(session, statement);
+    
+    if (cass_future_error_code(query_future) == CASS_OK) {
+        result->result = cass_future_get_result(query_future);
+        result->result_iterator = cass_iterator_from_result(result->result);
+        result->finished = false;
+    } else {
+        result->finished = true;
+    }
+    
+    cass_future_free(query_future);
+    cass_statement_free(statement);
+    
+    return std::move(result);
+}
+
 CassandraQueryFunction::CassandraQueryFunction()
-    : TableFunction("cassandra_query", {LogicalType::VARCHAR}, CassandraScanExecute, CassandraScanBind,
-                    CassandraScanInitGlobal, nullptr) {
+    : TableFunction("cassandra_query", {LogicalType::VARCHAR}, CassandraScanExecute, CassandraQueryBind,
+                    CassandraQueryInitGlobal, nullptr) {
     
     named_parameters["contact_points"] = LogicalType::VARCHAR;
     named_parameters["host"] = LogicalType::VARCHAR;
     named_parameters["port"] = LogicalType::INTEGER;
     named_parameters["username"] = LogicalType::VARCHAR;
     named_parameters["password"] = LogicalType::VARCHAR;
-    named_parameters["ssl"] = LogicalType::BOOLEAN;
-    named_parameters["use_ssl"] = LogicalType::BOOLEAN;
-    named_parameters["certfile"] = LogicalType::VARCHAR;
-    named_parameters["userkey"] = LogicalType::VARCHAR;
-    named_parameters["usercert"] = LogicalType::VARCHAR;
 }
 
 } // namespace cassandra

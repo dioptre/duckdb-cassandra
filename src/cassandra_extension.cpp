@@ -20,11 +20,15 @@ namespace duckdb {
 
 static void LoadInternal(ExtensionLoader &loader) {
 
-    // Just register the scan function for now - keep it simple
+    // Register table functions
     cassandra::CassandraScanFunction cassandra_scan_function;
     loader.RegisterFunction(cassandra_scan_function);
 
+    cassandra::CassandraQueryFunction cassandra_query_function;
+    loader.RegisterFunction(cassandra_query_function);
+
     auto &config = DBConfig::GetConfig(loader.GetDatabaseInstance());
+    // config.storage_extensions["cassandra"] = make_uniq<cassandra::CassandraStorageExtension>();
     config.AddExtensionOption("cassandra_contact_points",
                               "Comma-separated list of Cassandra contact points",
                               LogicalType::VARCHAR,

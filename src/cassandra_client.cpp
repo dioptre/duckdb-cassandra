@@ -337,24 +337,3 @@ unique_ptr<QueryResult> CassandraClient::ExecuteQuery(const string &query) {
 
 } // namespace cassandra
 } // namespace duckdb
-
-// SSL helper methods implementation
-namespace duckdb {
-namespace cassandra {
-
-std::string CassandraConfig::DecodeHexToString(const std::string& hex) const {
-    std::string result;
-    for (size_t i = 0; i < hex.length(); i += 2) {
-        std::string byte_str = hex.substr(i, 2);
-        char byte = static_cast<char>(std::stoul(byte_str, nullptr, 16));
-        result += byte;
-    }
-    return result;
-}
-
-bool CassandraConfig::HasSSLConfig() const {
-    return use_ssl && (!cert_file_hex.empty() || !user_cert_hex.empty());
-}
-
-} // namespace cassandra
-} // namespace duckdb

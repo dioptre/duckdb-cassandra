@@ -61,6 +61,7 @@ set(EXTENSION_SOURCES
     src/cassandra_scan.cpp
     src/cassandra_settings.cpp
     src/cassandra_types.cpp
+    src/cassandra_utils.cpp
 )
 
 # Define both static and loadable extensions

@@ -33,8 +33,6 @@ SELECT * FROM cassandra_scan('my_keyspace.my_table',
 
 ## Building
 
-Currently, the extension will not build successfully due to missing DataStax driver integration. Once the driver is integrated:
-
 ```bash
 make
 ```

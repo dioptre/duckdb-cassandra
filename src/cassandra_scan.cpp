@@ -2,6 +2,8 @@
 #include "cassandra_client.hpp"
 #include "cassandra_utils.hpp"
 #include "cassandra_types.hpp"
+#include "duckdb/common/types/uuid.hpp"
+#include "duckdb/common/types/timestamp.hpp"
 
 namespace duckdb {
 namespace cassandra {
@@ -10,8 +12,6 @@ struct CassandraScanBindData : public TableFunctionData {
     CassandraTableRef table_ref;
     CassandraConfig config;
     string filter_condition;
-    vector<string> column_names;
-    vector<LogicalType> column_types;
 };
 
 struct CassandraScanGlobalState : public GlobalTableFunctionState {
@@ -19,7 +19,6 @@ struct CassandraScanGlobalState : public GlobalTableFunctionState {
     CassIterator* result_iterator;
     const CassResult* result;
     bool finished;
-    vector<LogicalType> column_types;
     
     CassandraScanGlobalState() : result_iterator(nullptr), result(nullptr), finished(false) {}
     
@@ -44,7 +43,7 @@ static unique_ptr<FunctionData> CassandraScanBind(ClientContext &context, TableF
     
     auto table_name = StringValue::Get(input.inputs[0]);
     
-    // Parse table name - format: keyspace.table or just table
+    // Parse table name - format: keyspace.table
     auto dot_pos = table_name.find('.');
     if (dot_pos != string::npos) {
         bind_data->table_ref.keyspace_name = table_name.substr(0, dot_pos);
@@ -56,7 +55,7 @@ static unique_ptr<FunctionData> CassandraScanBind(ClientContext &context, TableF
     // Set default configuration
     bind_data->config = CassandraConfig();
     
-    // Parse named parameters for connection configuration
+    // Parse named parameters
     for (auto &kv : input.named_parameters) {
         auto lower_key = StringUtil::Lower(kv.first);
         if (lower_key == "contact_points" || lower_key == "host") {
@@ -67,10 +66,6 @@ static unique_ptr<FunctionData> CassandraScanBind(ClientContext &context, TableF
             bind_data->config.username = StringValue::Get(kv.second);
         } else if (lower_key == "password") {
             bind_data->config.password = StringValue::Get(kv.second);
-        } else if (lower_key == "keyspace") {
-            bind_data->config.keyspace = StringValue::Get(kv.second);
-        } else if (lower_key == "filter") {
-            bind_data->filter_condition = StringValue::Get(kv.second);
         } else if (lower_key == "ssl" || lower_key == "use_ssl") {
             bind_data->config.use_ssl = BooleanValue::Get(kv.second);
         } else if (lower_key == "certfile") {
@@ -85,14 +80,9 @@ static unique_ptr<FunctionData> CassandraScanBind(ClientContext &context, TableF
         }
     }
     
-    // Connect to Cassandra and get table schema
-    auto client = make_uniq<CassandraClient>(bind_data->config);
-    
-    // Get real table schema using a simple approach
+    // Get schema by doing a LIMIT 1 query and extracting metadata
     try {
         auto client = make_uniq<CassandraClient>(bind_data->config);
-        
-        // Just do a SELECT * to get column order and metadata with 1 row
         string schema_query = "SELECT * FROM " + bind_data->table_ref.keyspace_name + "." + bind_data->table_ref.table_name + " LIMIT 1";
         
         auto session = client->GetSession();
@@ -101,18 +91,42 @@ static unique_ptr<FunctionData> CassandraScanBind(ClientContext &context, TableF
         
         if (cass_future_error_code(result_future) == CASS_OK) {
             const CassResult* result = cass_future_get_result(result_future);
-            
-            // Get column count and names from result metadata
             size_t column_count = cass_result_column_count(result);
             
             for (size_t i = 0; i < column_count; i++) {
                 const char* column_name;
                 size_t name_length;
                 cass_result_column_name(result, i, &column_name, &name_length);
+                CassValueType column_type = cass_result_column_type(result, i);
                 
                 string col_name(column_name, name_length);
                 names.push_back(col_name);
-                return_types.push_back(LogicalType::VARCHAR); // Use VARCHAR for all for now
+                
+                // Map types properly
+                LogicalType duckdb_type;
+                switch (column_type) {
+                    case CASS_VALUE_TYPE_UUID:
+                    case CASS_VALUE_TYPE_TIMEUUID:
+                        duckdb_type = LogicalType::UUID;
+                        break;
+                    case CASS_VALUE_TYPE_TIMESTAMP:
+                        duckdb_type = LogicalType::TIMESTAMP_TZ;
+                        break;
+                    case CASS_VALUE_TYPE_DOUBLE:
+                        duckdb_type = LogicalType::DOUBLE;
+                        break;
+                    case CASS_VALUE_TYPE_INT:
+                        duckdb_type = LogicalType::INTEGER;
+                        break;
+                    case CASS_VALUE_TYPE_BIGINT:
+                        duckdb_type = LogicalType::BIGINT;
+                        break;
+                    default:
+                        duckdb_type = LogicalType::VARCHAR;
+                        break;
+                }
+                
+                return_types.push_back(duckdb_type);
             }
             
             cass_result_free(result);
@@ -121,17 +135,7 @@ static unique_ptr<FunctionData> CassandraScanBind(ClientContext &context, TableF
         cass_future_free(result_future);
         cass_statement_free(statement);
         
-        if (names.empty()) {
-            // Fallback schema
-            names.push_back("column1");
-            return_types.push_back(LogicalType::VARCHAR);
-        }
-        
-        std::cout << "Found " << names.size() << " columns for table: " 
-                  << bind_data->table_ref.GetQualifiedName() << std::endl;
-                  
     } catch (const std::exception& e) {
-        std::cerr << "Error getting schema: " << e.what() << std::endl;
         names.push_back("error");
         return_types.push_back(LogicalType::VARCHAR);
     }
@@ -144,16 +148,10 @@ static unique_ptr<GlobalTableFunctionState> CassandraScanInitGlobal(ClientContex
     auto result = make_uniq<CassandraScanGlobalState>();
     
     result->client = make_uniq<CassandraClient>(bind_data.config);
-    result->column_types = {}; // Will be populated when we execute query
     
-    // Build and execute CQL query
+    // Execute the actual data query
     string query = "SELECT * FROM " + bind_data.table_ref.keyspace_name + "." + bind_data.table_ref.table_name;
     
-    if (!bind_data.filter_condition.empty()) {
-        query += " WHERE " + bind_data.filter_condition;
-    }
-    
-    // Execute the query using the client's session
     auto session = result->client->GetSession();
     CassStatement* statement = cass_statement_new(query.c_str(), 0);
     CassFuture* query_future = cass_session_execute(session, statement);
@@ -163,12 +161,7 @@ static unique_ptr<GlobalTableFunctionState> CassandraScanInitGlobal(ClientContex
         result->result_iterator = cass_iterator_from_result(result->result);
         result->finished = false;
     } else {
-        const char* message;
-        size_t message_length;
-        cass_future_error_message(query_future, &message, &message_length);
-        cass_future_free(query_future);
-        cass_statement_free(statement);
-        throw InternalException("Failed to execute CQL query '%s': %s", query, std::string(message, message_length));
+        result->finished = true;
     }
     
     cass_future_free(query_future);
@@ -178,7 +171,6 @@ static unique_ptr<GlobalTableFunctionState> CassandraScanInitGlobal(ClientContex
 }
 
 static void CassandraScanExecute(ClientContext &context, TableFunctionInput &data, DataChunk &output) {
-    auto &bind_data = data.bind_data->Cast<CassandraScanBindData>();
     auto &gstate = data.global_state->Cast<CassandraScanGlobalState>();
     
     if (gstate.finished || !gstate.result_iterator) {
@@ -189,17 +181,12 @@ static void CassandraScanExecute(ClientContext &context, TableFunctionInput &dat
     idx_t row_count = 0;
     const idx_t chunk_size = STANDARD_VECTOR_SIZE;
     
-    // Process rows from Cassandra result - simplified approach
     while (row_count < chunk_size && cass_iterator_next(gstate.result_iterator)) {
         const CassRow* row = cass_iterator_get_row(gstate.result_iterator);
-        
-        // Get the number of columns from the result
         size_t column_count = cass_result_column_count(gstate.result);
         
-        // Convert each column value using proper types
         for (size_t col_idx = 0; col_idx < column_count && col_idx < output.ColumnCount(); col_idx++) {
             const CassValue* value = cass_row_get_column(row, col_idx);
-            
             auto &vector = output.data[col_idx];
             auto validity = FlatVector::Validity(vector);
             
@@ -208,129 +195,116 @@ static void CassandraScanExecute(ClientContext &context, TableFunctionInput &dat
             } else {
                 validity.SetValid(row_count);
                 
-                // Convert all values to strings (since all types are VARCHAR now)
-                auto data_ptr = FlatVector::GetData<string_t>(vector);
-                string string_val;
-                
+                LogicalType expected_type = vector.GetType();
                 CassValueType value_type = cass_value_type(value);
-                switch (value_type) {
-                    case CASS_VALUE_TYPE_ASCII:
-                    case CASS_VALUE_TYPE_TEXT:
-                    case CASS_VALUE_TYPE_VARCHAR: {
-                        const char* str_val;
-                        size_t str_len;
-                        cass_value_get_string(value, &str_val, &str_len);
-                        string_val = string(str_val, str_len);
-                        break;
-                    }
-                    case CASS_VALUE_TYPE_INT: {
-                        cass_int32_t int_val;
-                        cass_value_get_int32(value, &int_val);
-                        string_val = std::to_string(int_val);
-                        break;
-                    }
-                    case CASS_VALUE_TYPE_BIGINT: {
-                        cass_int64_t bigint_val;
-                        cass_value_get_int64(value, &bigint_val);
-                        string_val = std::to_string(bigint_val);
-                        break;
-                    }
-                    case CASS_VALUE_TYPE_DOUBLE: {
-                        cass_double_t double_val;
-                        cass_value_get_double(value, &double_val);
-                        string_val = std::to_string(double_val);
-                        break;
-                    }
-                    case CASS_VALUE_TYPE_UUID:
-                    case CASS_VALUE_TYPE_TIMEUUID: {
+                
+                switch (expected_type.id()) {
+                    case LogicalTypeId::UUID: {
+                        auto data_ptr = FlatVector::GetData<hugeint_t>(vector);
                         CassUuid uuid_val;
                         cass_value_get_uuid(value, &uuid_val);
                         char uuid_str[CASS_UUID_STRING_LENGTH];
                         cass_uuid_string(uuid_val, uuid_str);
-                        string_val = string(uuid_str);
+                        hugeint_t uuid_hugeint;
+                        if (UUID::FromCString(uuid_str, strlen(uuid_str), uuid_hugeint)) {
+                            data_ptr[row_count] = uuid_hugeint;
+                        } else {
+                            validity.SetInvalid(row_count);
+                        }
                         break;
                     }
-                    case CASS_VALUE_TYPE_TIMESTAMP: {
+                    case LogicalTypeId::TIMESTAMP_TZ: {
+                        auto data_ptr = FlatVector::GetData<timestamp_t>(vector);
                         cass_int64_t timestamp_ms;
                         cass_value_get_int64(value, &timestamp_ms);
-                        // Convert to ISO format like Cassandra shows
-                        time_t time_sec = timestamp_ms / 1000;
-                        int ms_part = timestamp_ms % 1000;
-                        struct tm* utc_tm = gmtime(&time_sec);
-                        char timestamp_str[64];
-                        snprintf(timestamp_str, sizeof(timestamp_str), "%04d-%02d-%02d %02d:%02d:%02d.%03d000+0000",
-                               utc_tm->tm_year + 1900, utc_tm->tm_mon + 1, utc_tm->tm_mday,
-                               utc_tm->tm_hour, utc_tm->tm_min, utc_tm->tm_sec, ms_part);
-                        string_val = string(timestamp_str);
+                        data_ptr[row_count] = timestamp_t(timestamp_ms * 1000);
                         break;
                     }
-                    case CASS_VALUE_TYPE_BOOLEAN: {
-                        cass_bool_t bool_val;
-                        cass_value_get_bool(value, &bool_val);
-                        string_val = (bool_val == cass_true) ? "true" : "false";
+                    case LogicalTypeId::DOUBLE: {
+                        auto data_ptr = FlatVector::GetData<double>(vector);
+                        cass_double_t double_val;
+                        cass_value_get_double(value, &double_val);
+                        data_ptr[row_count] = double_val;
                         break;
                     }
-                    case CASS_VALUE_TYPE_INET: {
-                        CassInet inet_val;
-                        cass_value_get_inet(value, &inet_val);
-                        char inet_str[CASS_INET_STRING_LENGTH];
-                        cass_inet_string(inet_val, inet_str);
-                        string_val = string(inet_str);
+                    case LogicalTypeId::INTEGER: {
+                        auto data_ptr = FlatVector::GetData<int32_t>(vector);
+                        cass_int32_t int_val;
+                        cass_value_get_int32(value, &int_val);
+                        data_ptr[row_count] = int_val;
                         break;
                     }
-                    case CASS_VALUE_TYPE_MAP: {
-                        // Serialize map as JSON-like string
-                        string_val = "{";
-                        CassIterator* map_iterator = cass_iterator_from_map(value);
-                        bool first = true;
-                        while (cass_iterator_next(map_iterator)) {
-                            if (!first) string_val += ", ";
-                            first = false;
-                            
-                            const CassValue* key = cass_iterator_get_map_key(map_iterator);
-                            const CassValue* val = cass_iterator_get_map_value(map_iterator);
-                            
-                            // Get key as string
-                            const char* key_str;
-                            size_t key_len;
-                            cass_value_get_string(key, &key_str, &key_len);
-                            
-                            // Get value as string  
-                            const char* val_str;
-                            size_t val_len;
-                            cass_value_get_string(val, &val_str, &val_len);
-                            
-                            string_val += "'" + string(key_str, key_len) + "': '" + string(val_str, val_len) + "'";
+                    case LogicalTypeId::BIGINT: {
+                        auto data_ptr = FlatVector::GetData<int64_t>(vector);
+                        cass_int64_t bigint_val;
+                        cass_value_get_int64(value, &bigint_val);
+                        data_ptr[row_count] = bigint_val;
+                        break;
+                    }
+                    case LogicalTypeId::VARCHAR:
+                    default: {
+                        auto data_ptr = FlatVector::GetData<string_t>(vector);
+                        string string_val;
+                        
+                        switch (value_type) {
+                            case CASS_VALUE_TYPE_ASCII:
+                            case CASS_VALUE_TYPE_TEXT:
+                            case CASS_VALUE_TYPE_VARCHAR: {
+                                const char* str_val;
+                                size_t str_len;
+                                cass_value_get_string(value, &str_val, &str_len);
+                                string_val = string(str_val, str_len);
+                                break;
+                            }
+                            case CASS_VALUE_TYPE_UUID:
+                            case CASS_VALUE_TYPE_TIMEUUID: {
+                                CassUuid uuid_val;
+                                cass_value_get_uuid(value, &uuid_val);
+                                char uuid_str[CASS_UUID_STRING_LENGTH];
+                                cass_uuid_string(uuid_val, uuid_str);
+                                string_val = string(uuid_str);
+                                break;
+                            }
+                            case CASS_VALUE_TYPE_MAP: {
+                                string_val = "{";
+                                CassIterator* map_iterator = cass_iterator_from_map(value);
+                                bool first = true;
+                                while (cass_iterator_next(map_iterator)) {
+                                    if (!first) string_val += ", ";
+                                    first = false;
+                                    
+                                    const CassValue* key = cass_iterator_get_map_key(map_iterator);
+                                    const CassValue* val = cass_iterator_get_map_value(map_iterator);
+                                    
+                                    const char* key_str;
+                                    size_t key_len;
+                                    cass_value_get_string(key, &key_str, &key_len);
+                                    
+                                    const char* val_str;
+                                    size_t val_len;
+                                    cass_value_get_string(val, &val_str, &val_len);
+                                    
+                                    string_val += "'" + string(key_str, key_len) + "': '" + string(val_str, val_len) + "'";
+                                }
+                                string_val += "}";
+                                cass_iterator_free(map_iterator);
+                                break;
+                            }
+                            default:
+                                string_val = "<type:" + std::to_string(static_cast<int>(value_type)) + ">";
+                                break;
                         }
-                        string_val += "}";
-                        cass_iterator_free(map_iterator);
+                        
+                        data_ptr[row_count] = StringVector::AddString(vector, string_val);
                         break;
                     }
-                    case CASS_VALUE_TYPE_LIST: {
-                        string_val = "[\"list\", \"<serialization_needed>\"]";
-                        break;
-                    }
-                    case CASS_VALUE_TYPE_SET: {
-                        string_val = "[\"set\", \"<serialization_needed>\"]";
-                        break;
-                    }
-                    case CASS_VALUE_TYPE_UDT: {
-                        string_val = "{\"udt\": \"<serialization_needed>\"}";
-                        break;
-                    }
-                    default:
-                        string_val = "<unsupported_type:" + std::to_string(static_cast<int>(value_type)) + ">";
-                        break;
-                    }
-                    
-                data_ptr[row_count] = StringVector::AddString(vector, string_val);
+                }
             }
         }
         
         row_count++;
     }
     
-    // Check if we've finished iterating
     if (row_count == 0) {
         gstate.finished = true;
     }
@@ -347,8 +321,6 @@ CassandraScanFunction::CassandraScanFunction()
     named_parameters["port"] = LogicalType::INTEGER;
     named_parameters["username"] = LogicalType::VARCHAR;
     named_parameters["password"] = LogicalType::VARCHAR;
-    named_parameters["keyspace"] = LogicalType::VARCHAR;
-    named_parameters["filter"] = LogicalType::VARCHAR;
     named_parameters["ssl"] = LogicalType::BOOLEAN;
     named_parameters["use_ssl"] = LogicalType::BOOLEAN;
     named_parameters["certfile"] = LogicalType::VARCHAR;
@@ -356,7 +328,6 @@ CassandraScanFunction::CassandraScanFunction()
     named_parameters["usercert"] = LogicalType::VARCHAR;
 }
 
-// Similar implementation for CassandraQueryFunction
 CassandraQueryFunction::CassandraQueryFunction()
     : TableFunction("cassandra_query", {LogicalType::VARCHAR}, CassandraScanExecute, CassandraScanBind,
                     CassandraScanInitGlobal, nullptr) {
@@ -366,7 +337,11 @@ CassandraQueryFunction::CassandraQueryFunction()
     named_parameters["port"] = LogicalType::INTEGER;
     named_parameters["username"] = LogicalType::VARCHAR;
     named_parameters["password"] = LogicalType::VARCHAR;
-    named_parameters["keyspace"] = LogicalType::VARCHAR;
+    named_parameters["ssl"] = LogicalType::BOOLEAN;
+    named_parameters["use_ssl"] = LogicalType::BOOLEAN;
+    named_parameters["certfile"] = LogicalType::VARCHAR;
+    named_parameters["userkey"] = LogicalType::VARCHAR;
+    named_parameters["usercert"] = LogicalType::VARCHAR;
 }
 
 } // namespace cassandra

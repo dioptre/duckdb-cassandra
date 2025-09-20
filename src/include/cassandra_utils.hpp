@@ -44,15 +44,20 @@ struct CassandraTableRef {
     }
 };
 
-// Attach function for storage extension
-unique_ptr<Catalog> CassandraAttachCatalog(optional_ptr<StorageExtensionInfo> storage_info, ClientContext &context,
-                                            AttachedDatabase &db, const string &name, AttachInfo &info, AttachOptions &options);
+// Forward declarations for storage extension functions
+unique_ptr<Catalog> CassandraAttachCatalog(optional_ptr<StorageExtensionInfo> storage_info,
+                                           ClientContext &context, AttachedDatabase &db, const string &name,
+                                           AttachInfo &info, AttachOptions &options);
+
+unique_ptr<TransactionManager> CassandraCreateTransactionManager(optional_ptr<StorageExtensionInfo> storage_info,
+                                                                 AttachedDatabase &db, Catalog &catalog);
 
 class CassandraStorageExtension : public StorageExtension {
 public:
     CassandraStorageExtension() {
         attach = CassandraAttachCatalog;
-        create_transaction_manager = nullptr;
+        create_transaction_manager = CassandraCreateTransactionManager;
+        storage_info = nullptr;
     }
 };
 

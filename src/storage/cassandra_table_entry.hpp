@@ -9,11 +9,13 @@ namespace cassandra {
 
 class CassandraTableEntry : public TableCatalogEntry {
 public:
-    CassandraTableEntry(Catalog &catalog, CreateTableInfo &info, const CassandraTableRef &table_ref);
+    CassandraTableEntry(Catalog &catalog, SchemaCatalogEntry &schema, CreateTableInfo &info, const CassandraTableRef &table_ref);
 
     unique_ptr<BaseStatistics> GetStatistics(ClientContext &context, column_t column_id) override;
 
     TableFunction GetScanFunction(ClientContext &context, unique_ptr<FunctionData> &bind_data) override;
+    
+    TableStorageInfo GetStorageInfo(ClientContext &context) override;
 
 private:
     CassandraTableRef table_ref;

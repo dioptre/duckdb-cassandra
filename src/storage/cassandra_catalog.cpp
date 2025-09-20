@@ -2,6 +2,7 @@
 #include "cassandra_schema_entry.hpp"
 #include "../include/cassandra_client.hpp"
 #include "duckdb/parser/parsed_data/create_schema_info.hpp"
+#include "duckdb/parser/parsed_data/drop_info.hpp"
 #include "duckdb/storage/database_size.hpp"
 
 namespace duckdb {
@@ -17,7 +18,13 @@ CassandraCatalog::CassandraCatalog(AttachedDatabase &db, const string &name, con
 CassandraCatalog::~CassandraCatalog() = default;
 
 void CassandraCatalog::Initialize(bool load_builtin) {
-    // Initialize catalog
+    std::cout << "DEBUG: CassandraCatalog::Initialize called with keyspace: " << config.keyspace << std::endl;
+    
+    // Create the default schema (keyspace) 
+    if (!config.keyspace.empty()) {
+        std::cout << "DEBUG: Creating default schema for keyspace: " << config.keyspace << std::endl;
+        // The schema will be created on-demand via LookupSchema
+    }
 }
 
 string CassandraCatalog::GetCatalogType() {
@@ -46,25 +53,28 @@ optional_ptr<SchemaCatalogEntry> CassandraCatalog::LookupSchema(CatalogTransacti
                                                                 const EntryLookupInfo &schema_lookup,
                                                                 OnEntryNotFound if_not_found) {
     auto schema_name = schema_lookup.GetEntryName();
+    std::cout << "DEBUG: LookupSchema called for: " << schema_name << std::endl;
     
-    if (!client->KeyspaceExists(schema_name)) {
-        if (if_not_found == OnEntryNotFound::RETURN_NULL) {
-            return nullptr;
-        }
-        throw CatalogException("Keyspace \"%s\" does not exist", schema_name);
+    // For Cassandra, we should default to the configured keyspace if no schema specified
+    if (schema_name.empty() || schema_name == "main") {
+        schema_name = config.keyspace.empty() ? "sfpla" : config.keyspace;
+        std::cout << "DEBUG: Using default keyspace: " << schema_name << std::endl;
     }
-
+    
     auto keyspace_ref = client->GetKeyspace(schema_name);
-    CreateSchemaInfo schema_info{schema_name};
+    CreateSchemaInfo schema_info;
+    schema_info.schema = schema_name;
+    std::cout << "DEBUG: Creating schema entry for: " << schema_name << std::endl;
     return make_uniq<CassandraSchemaEntry>(*this, schema_info, keyspace_ref).release();
 }
 
 void CassandraCatalog::ScanSchemas(ClientContext &context, std::function<void(SchemaCatalogEntry &)> callback) {
     auto keyspaces = client->GetKeyspaces();
     for (const auto& ks : keyspaces) {
-        CreateSchemaInfo schema_info{ks.keyspace_name};
-        auto schema_entry = CassandraSchemaEntry(*this, schema_info, ks);
-        callback(schema_entry);
+        CreateSchemaInfo schema_info;
+        schema_info.schema = ks.keyspace_name;
+        auto schema_entry = make_uniq<CassandraSchemaEntry>(*this, schema_info, ks);
+        callback(*schema_entry);
     }
 }
 

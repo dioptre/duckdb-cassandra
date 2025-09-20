@@ -62,6 +62,10 @@ set(EXTENSION_SOURCES
     src/cassandra_settings.cpp
     src/cassandra_types.cpp
     src/cassandra_utils.cpp
+    src/storage/cassandra_catalog.cpp
+    src/storage/cassandra_schema_entry.cpp
+    src/storage/cassandra_table_entry.cpp
+    src/storage/cassandra_transaction.cpp
 )
 
 # Define both static and loadable extensions

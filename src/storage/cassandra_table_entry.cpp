@@ -4,8 +4,8 @@
 namespace duckdb {
 namespace cassandra {
 
-CassandraTableEntry::CassandraTableEntry(Catalog &catalog, CreateTableInfo &info, const CassandraTableRef &table_ref)
-    : TableCatalogEntry(catalog, info), table_ref(table_ref) {
+CassandraTableEntry::CassandraTableEntry(Catalog &catalog, SchemaCatalogEntry &schema, CreateTableInfo &info, const CassandraTableRef &table_ref)
+    : TableCatalogEntry(catalog, schema, info), table_ref(table_ref) {
 }
 
 unique_ptr<BaseStatistics> CassandraTableEntry::GetStatistics(ClientContext &context, column_t column_id) {
@@ -23,6 +23,13 @@ TableFunction CassandraTableEntry::GetScanFunction(ClientContext &context, uniqu
     
     // Return the cassandra scan function
     return CassandraScanFunction();
+}
+
+TableStorageInfo CassandraTableEntry::GetStorageInfo(ClientContext &context) {
+    TableStorageInfo info;
+    info.cardinality = 0;
+    info.index_info = vector<IndexInfo>();
+    return info;
 }
 
 } // namespace cassandra

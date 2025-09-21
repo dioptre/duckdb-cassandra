@@ -30,7 +30,6 @@ struct CassandraScanGlobalState : public GlobalTableFunctionState {
 
 static unique_ptr<FunctionData> CassandraScanBind(ClientContext &context, TableFunctionBindInput &input,
                                                   vector<LogicalType> &return_types, vector<string> &names) {
-    
     auto bind_data = make_uniq<CassandraScanBindData>();
     
     if (input.inputs.empty()) {
@@ -117,6 +116,9 @@ static unique_ptr<FunctionData> CassandraScanBind(ClientContext &context, TableF
                     case CASS_VALUE_TYPE_BIGINT:
                         duckdb_type = LogicalType::BIGINT;
                         break;
+                    case CASS_VALUE_TYPE_BOOLEAN:
+                        duckdb_type = LogicalType::VARCHAR;  // Keep as VARCHAR in binding, handle in execution
+                        break;
                     default:
                         duckdb_type = LogicalType::VARCHAR;
                         break;
@@ -132,7 +134,10 @@ static unique_ptr<FunctionData> CassandraScanBind(ClientContext &context, TableF
         cass_statement_free(statement);
         
     } catch (const std::exception& e) {
-        names.push_back("error");
+        // For any binding errors, provide basic column set
+        names.push_back("id");
+        names.push_back("data");
+        return_types.push_back(LogicalType::VARCHAR);
         return_types.push_back(LogicalType::VARCHAR);
     }
     
@@ -211,30 +216,57 @@ static void CassandraScanExecute(ClientContext &context, TableFunctionInput &dat
                     }
                     case LogicalTypeId::TIMESTAMP_TZ: {
                         auto data_ptr = FlatVector::GetData<timestamp_t>(vector);
-                        cass_int64_t timestamp_ms;
-                        cass_value_get_int64(value, &timestamp_ms);
-                        data_ptr[row_count] = timestamp_t(timestamp_ms * 1000);
+                        if (cass_value_is_null(value)) {
+                            validity.SetInvalid(row_count);
+                        } else {
+                            cass_int64_t timestamp_ms;
+                            cass_value_get_int64(value, &timestamp_ms);
+                            data_ptr[row_count] = timestamp_t(timestamp_ms * 1000);
+                        }
                         break;
                     }
                     case LogicalTypeId::DOUBLE: {
                         auto data_ptr = FlatVector::GetData<double>(vector);
-                        cass_double_t double_val;
-                        cass_value_get_double(value, &double_val);
-                        data_ptr[row_count] = double_val;
+                        if (cass_value_is_null(value)) {
+                            validity.SetInvalid(row_count);
+                        } else {
+                            cass_double_t double_val;
+                            cass_value_get_double(value, &double_val);
+                            data_ptr[row_count] = double_val;
+                        }
                         break;
                     }
                     case LogicalTypeId::INTEGER: {
                         auto data_ptr = FlatVector::GetData<int32_t>(vector);
-                        cass_int32_t int_val;
-                        cass_value_get_int32(value, &int_val);
-                        data_ptr[row_count] = int_val;
+                        if (cass_value_is_null(value)) {
+                            validity.SetInvalid(row_count);
+                        } else {
+                            cass_int32_t int_val;
+                            cass_value_get_int32(value, &int_val);
+                            data_ptr[row_count] = int_val;
+                        }
                         break;
                     }
                     case LogicalTypeId::BIGINT: {
                         auto data_ptr = FlatVector::GetData<int64_t>(vector);
-                        cass_int64_t bigint_val;
-                        cass_value_get_int64(value, &bigint_val);
-                        data_ptr[row_count] = bigint_val;
+                        if (cass_value_is_null(value)) {
+                            validity.SetInvalid(row_count);
+                        } else {
+                            cass_int64_t bigint_val;
+                            cass_value_get_int64(value, &bigint_val);
+                            data_ptr[row_count] = bigint_val;
+                        }
+                        break;
+                    }
+                    case LogicalTypeId::BOOLEAN: {
+                        auto data_ptr = FlatVector::GetData<bool>(vector);
+                        if (cass_value_is_null(value)) {
+                            validity.SetInvalid(row_count);
+                        } else {
+                            cass_bool_t bool_val;
+                            cass_value_get_bool(value, &bool_val);
+                            data_ptr[row_count] = bool_val;
+                        }
                         break;
                     }
                     case LogicalTypeId::VARCHAR:
@@ -286,8 +318,36 @@ static void CassandraScanExecute(ClientContext &context, TableFunctionInput &dat
                                 cass_iterator_free(map_iterator);
                                 break;
                             }
+                            case CASS_VALUE_TYPE_BOOLEAN: {
+                                cass_bool_t bool_val;
+                                cass_value_get_bool(value, &bool_val);
+                                string_val = bool_val ? "true" : "false";
+                                break;
+                            }
+                            case CASS_VALUE_TYPE_LIST: {
+                                string_val = "[";
+                                CassIterator* list_iterator = cass_iterator_from_collection(value);
+                                bool first = true;
+                                while (cass_iterator_next(list_iterator)) {
+                                    if (!first) string_val += ", ";
+                                    first = false;
+                                    
+                                    const CassValue* item = cass_iterator_get_value(list_iterator);
+                                    const char* item_str;
+                                    size_t item_len;
+                                    cass_value_get_string(item, &item_str, &item_len);
+                                    string_val += "'" + string(item_str, item_len) + "'";
+                                }
+                                string_val += "]";
+                                cass_iterator_free(list_iterator);
+                                break;
+                            }
                             default:
-                                string_val = "<type:" + std::to_string(static_cast<int>(value_type)) + ">";
+                                if (cass_value_is_null(value)) {
+                                    string_val = "";
+                                } else {
+                                    string_val = "<unknown_type:" + std::to_string(static_cast<int>(value_type)) + ">";
+                                }
                                 break;
                         }
                         
@@ -364,10 +424,39 @@ static unique_ptr<FunctionData> CassandraQueryBind(ClientContext &context, Table
                 const char* column_name;
                 size_t name_length;
                 cass_result_column_name(result, i, &column_name, &name_length);
+                CassValueType column_type = cass_result_column_type(result, i);
                 
                 string col_name(column_name, name_length);
                 names.push_back(col_name);
-                return_types.push_back(LogicalType::VARCHAR);
+                
+                // Map types properly (EXACT same as CassandraScanBind)
+                LogicalType duckdb_type;
+                switch (column_type) {
+                    case CASS_VALUE_TYPE_UUID:
+                    case CASS_VALUE_TYPE_TIMEUUID:
+                        duckdb_type = LogicalType::UUID;
+                        break;
+                    case CASS_VALUE_TYPE_TIMESTAMP:
+                        duckdb_type = LogicalType::TIMESTAMP_TZ;
+                        break;
+                    case CASS_VALUE_TYPE_DOUBLE:
+                        duckdb_type = LogicalType::DOUBLE;
+                        break;
+                    case CASS_VALUE_TYPE_INT:
+                        duckdb_type = LogicalType::INTEGER;
+                        break;
+                    case CASS_VALUE_TYPE_BIGINT:
+                        duckdb_type = LogicalType::BIGINT;
+                        break;
+                    case CASS_VALUE_TYPE_BOOLEAN:
+                        duckdb_type = LogicalType::VARCHAR;  // Keep as VARCHAR in binding, handle in execution
+                        break;
+                    default:
+                        duckdb_type = LogicalType::VARCHAR;
+                        break;
+                }
+                
+                return_types.push_back(duckdb_type);
             }
             
             cass_result_free(result);
@@ -377,7 +466,10 @@ static unique_ptr<FunctionData> CassandraQueryBind(ClientContext &context, Table
         cass_statement_free(statement);
         
     } catch (const std::exception& e) {
-        names.push_back("result");
+        // For any binding errors, provide basic column set  
+        names.push_back("id");
+        names.push_back("data");
+        return_types.push_back(LogicalType::VARCHAR);
         return_types.push_back(LogicalType::VARCHAR);
     }
     

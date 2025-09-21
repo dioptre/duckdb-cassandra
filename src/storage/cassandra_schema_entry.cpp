@@ -2,6 +2,7 @@
 #include "cassandra_table_entry.hpp"
 #include "cassandra_catalog.hpp"
 #include "../include/cassandra_client.hpp"
+#include "cassandra_types.hpp"
 #include "duckdb/parser/parsed_data/create_table_info.hpp"
 
 namespace duckdb {
@@ -116,33 +117,10 @@ optional_ptr<CatalogEntry> CassandraSchemaEntry::LookupEntry(CatalogTransaction 
                 const char* column_name;
                 size_t name_length;
                 cass_result_column_name(result, i, &column_name, &name_length);
-                CassValueType column_type = cass_result_column_type(result, i);
-                
                 string col_name(column_name, name_length);
                 
-                // Map Cassandra types to DuckDB types
-                LogicalType duckdb_type;
-                switch (column_type) {
-                    case CASS_VALUE_TYPE_UUID:
-                    case CASS_VALUE_TYPE_TIMEUUID:
-                        duckdb_type = LogicalType::UUID;
-                        break;
-                    case CASS_VALUE_TYPE_TIMESTAMP:
-                        duckdb_type = LogicalType::TIMESTAMP_TZ;
-                        break;
-                    case CASS_VALUE_TYPE_DOUBLE:
-                        duckdb_type = LogicalType::DOUBLE;
-                        break;
-                    case CASS_VALUE_TYPE_INT:
-                        duckdb_type = LogicalType::INTEGER;
-                        break;
-                    case CASS_VALUE_TYPE_BIGINT:
-                        duckdb_type = LogicalType::BIGINT;
-                        break;
-                    default:
-                        duckdb_type = LogicalType::VARCHAR;
-                        break;
-                }
+                // Use VARCHAR for all types to match execution expectations
+                LogicalType duckdb_type = LogicalType::VARCHAR;
                 
                 table_info.columns.AddColumn(ColumnDefinition(col_name, duckdb_type));
             }

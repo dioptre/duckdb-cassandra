@@ -58,15 +58,12 @@ void CassandraSchemaEntry::Alter(CatalogTransaction transaction, AlterInfo &info
 }
 
 void CassandraSchemaEntry::Scan(CatalogType type, const std::function<void(CatalogEntry &)> &callback) {
-    std::cout << "DEBUG: CassandraSchemaEntry::Scan called with type: " << static_cast<int>(type) << std::endl;
     if (type == CatalogType::TABLE_ENTRY) {
-        std::cout << "DEBUG: Scanning tables for keyspace: " << keyspace_ref.keyspace_name << std::endl;
         
         // Get real tables from Cassandra for this keyspace
         vector<string> known_tables = {"events", "x", "users"};
         
         for (const auto& table_name : known_tables) {
-            std::cout << "DEBUG: Adding table: " << table_name << std::endl;
             auto table_ref = CassandraTableRef{keyspace_ref.keyspace_name, table_name};
             CreateTableInfo table_info;
             table_info.table = table_name;
@@ -89,7 +86,6 @@ void CassandraSchemaEntry::DropEntry(ClientContext &context, DropInfo &info) {
 
 optional_ptr<CatalogEntry> CassandraSchemaEntry::LookupEntry(CatalogTransaction transaction, const EntryLookupInfo &lookup_info) {
     auto entry_name = lookup_info.GetEntryName();
-    std::cout << "DEBUG: LookupEntry called for: " << entry_name << std::endl;
     
     // Return a table entry for any table name requested
     auto table_ref = CassandraTableRef{keyspace_ref.keyspace_name, entry_name};
@@ -110,9 +106,7 @@ optional_ptr<CatalogEntry> CassandraSchemaEntry::LookupEntry(CatalogTransaction 
         if (cass_future_error_code(result_future) == CASS_OK) {
             const CassResult* result = cass_future_get_result(result_future);
             size_t column_count = cass_result_column_count(result);
-            
-            std::cout << "DEBUG: Found " << column_count << " columns for table " << entry_name << std::endl;
-            
+                        
             for (size_t i = 0; i < column_count; i++) {
                 const char* column_name;
                 size_t name_length;
@@ -188,15 +182,16 @@ optional_ptr<CatalogEntry> CassandraSchemaEntry::LookupEntry(CatalogTransaction 
         cass_statement_free(statement);
         
     } catch (const std::exception& e) {
-        std::cout << "DEBUG: Error getting schema, using fallback: " << e.what() << std::endl;
-        // Fallback to basic columns
-        table_info.columns.AddColumn(ColumnDefinition("eid", LogicalType::UUID));
-        table_info.columns.AddColumn(ColumnDefinition("created", LogicalType::TIMESTAMP_TZ));
-        table_info.columns.AddColumn(ColumnDefinition("ename", LogicalType::VARCHAR));
-        table_info.columns.AddColumn(ColumnDefinition("score", LogicalType::DOUBLE));
+        throw BinderException("Failed to get schema for table '%s.%s': %s", 
+                            keyspace_ref.keyspace_name.c_str(), entry_name.c_str(), e.what());
     }
     
-    std::cout << "DEBUG: Creating table entry for: " << table_ref.GetQualifiedName() << std::endl;
+    // Ensure we actually have columns
+    if (table_info.columns.LogicalColumnCount() == 0) {
+        throw BinderException("Table '%s.%s' has no columns or does not exist", 
+                            keyspace_ref.keyspace_name.c_str(), entry_name.c_str());
+    }
+    
     return make_uniq<CassandraTableEntry>(catalog, *this, table_info, table_ref).release();
 }
 

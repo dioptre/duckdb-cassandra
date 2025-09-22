@@ -164,11 +164,14 @@ static unique_ptr<FunctionData> CassandraScanBind(ClientContext &context, TableF
         cass_statement_free(statement);
         
     } catch (const std::exception& e) {
-        // For any binding errors, provide basic column set
-        names.push_back("id");
-        names.push_back("data");
-        return_types.push_back(LogicalType::VARCHAR);
-        return_types.push_back(LogicalType::VARCHAR);
+        throw BinderException("Failed to get schema for table '%s': %s", 
+                            table_name.c_str(), e.what());
+    }
+    
+    // Ensure we have at least one column
+    if (names.empty()) {
+        throw BinderException("Table '%s' has no columns or does not exist", 
+                            table_name.c_str());
     }
     
     return std::move(bind_data);
@@ -726,21 +729,14 @@ static unique_ptr<FunctionData> CassandraQueryBind(ClientContext &context, Table
         cass_statement_free(statement);
         
     } catch (const std::exception& e) {
-        // For any binding errors, provide reasonable fallback columns
-        names.clear();  // Clear any partial results
-        return_types.clear();
-        names.push_back("id");
-        names.push_back("text_col");
-        names.push_back("int_col");
-        return_types.push_back(LogicalType::UUID);
-        return_types.push_back(LogicalType::VARCHAR);
-        return_types.push_back(LogicalType::INTEGER);
+        throw BinderException("Failed to execute CQL query '%s': %s", 
+                            query.c_str(), e.what());
     }
     
-    // Ensure we always have at least one column
+    // Ensure we have at least one column
     if (names.empty()) {
-        names.push_back("error");
-        return_types.push_back(LogicalType::VARCHAR);
+        throw BinderException("CQL query '%s' failed", 
+                            query.c_str());
     }
     
     return std::move(bind_data);

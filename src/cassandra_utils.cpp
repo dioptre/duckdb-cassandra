@@ -72,19 +72,14 @@ bool CassandraConfig::HasSSLConfig() const {
 unique_ptr<Catalog> CassandraAttachCatalog(optional_ptr<StorageExtensionInfo> storage_info,
                                            ClientContext &context, AttachedDatabase &db, const string &name,
                                            AttachInfo &info, AttachOptions &options) {
-    std::cout << "*** ATTACH FUNCTION CALLED ***" << std::endl;
-    std::cout << "DEBUG: CassandraAttachCatalog called with path: " << info.path << std::endl;
     auto config = CassandraConfig::FromConnectionString(info.path);
-    std::cout << "DEBUG: Parsed config - keyspace: " << config.keyspace << std::endl;
     auto catalog = make_uniq<CassandraCatalog>(db, name, info.path, options.access_mode, config);
-    std::cout << "DEBUG: CassandraCatalog created successfully" << std::endl;
     return catalog;
 }
 
 unique_ptr<TransactionManager> CassandraCreateTransactionManager(optional_ptr<StorageExtensionInfo> storage_info,
                                                                         AttachedDatabase &db,
                                                                         Catalog &catalog) {
-    std::cout << "*** CREATE TRANSACTION MANAGER CALLED ***" << std::endl;
     return make_uniq<CassandraTransactionManager>(db);
 }
 

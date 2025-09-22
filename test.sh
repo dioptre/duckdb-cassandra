@@ -37,7 +37,7 @@ CREATE TABLE all_types (
     frozen_map frozen<map<text, int>>
 );"
 
-echo "2. Inserting 5 rows of test data with all data types..."
+echo "2. Inserting 4 rows of test data with all data types..."
 cqlsh localhost -e "
 USE duckdb_test;
 
@@ -80,7 +80,7 @@ INSERT INTO all_types (id, text_col) VALUES (uuid(), 'Minimal Row');
 
 echo "3. Verifying data with cqlsh..."
 echo "Sample data from Cassandra:"
-cqlsh localhost -e "USE duckdb_test; SELECT id, text_col, int_col, double_col, timestamp_col, list_col, map_col FROM all_types LIMIT 3;" 2>/dev/null
+cqlsh localhost -e "USE duckdb_test; SELECT id, text_col, int_col, double_col, timestamp_col, list_col, map_col FROM all_types;" 2>/dev/null
 
 echo
 echo "4. Testing DuckDB Cassandra Extension - Method 1: cassandra_scan()"
@@ -141,15 +141,3 @@ SELECT * FROM cassandra_scan('duckdb_test.all_types',
 echo
 echo "9. Cleanup - Removing test data..."
 cqlsh localhost -e "DROP KEYSPACE IF EXISTS duckdb_test;" 2>/dev/null
-
-echo
-echo "🎉 COMPREHENSIVE TEST COMPLETE!"
-echo "==============================="
-echo "✅ All Cassandra data types tested"
-echo "✅ All three access methods tested"
-echo "✅ Real data insertion and retrieval"
-echo "✅ NULL value handling"
-echo "✅ SSL parameter support"
-echo "✅ Performance testing"
-echo
-echo "Your DuckDB Cassandra Extension is PRODUCTION READY! 🎉"

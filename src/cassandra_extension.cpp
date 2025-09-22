@@ -27,14 +27,8 @@ static void LoadInternal(ExtensionLoader &loader) {
     cassandra::CassandraQueryFunction cassandra_query_function;
     loader.RegisterFunction(cassandra_query_function);
 
-    // Don't register ATTACH function - let storage extension handle it
-    // cassandra::CassandraAttachFunction cassandra_attach_function;
-    // loader.RegisterFunction(cassandra_attach_function);
-
     auto &config = DBConfig::GetConfig(loader.GetDatabaseInstance());
-    std::cout << "DEBUG: Registering cassandra storage extension" << std::endl;
     auto storage_ext = make_uniq<cassandra::CassandraStorageExtension>();
-    std::cout << "DEBUG: Storage extension created, attach function: " << (storage_ext->attach ? "SET" : "NULL") << std::endl;
     config.storage_extensions["cassandra"] = std::move(storage_ext);
     config.AddExtensionOption("cassandra_contact_points",
                               "Comma-separated list of Cassandra contact points",

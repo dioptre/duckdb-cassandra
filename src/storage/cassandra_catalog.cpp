@@ -18,11 +18,9 @@ CassandraCatalog::CassandraCatalog(AttachedDatabase &db, const string &name, con
 CassandraCatalog::~CassandraCatalog() = default;
 
 void CassandraCatalog::Initialize(bool load_builtin) {
-    std::cout << "DEBUG: CassandraCatalog::Initialize called with keyspace: " << config.keyspace << std::endl;
     
     // Create the default schema (keyspace) 
     if (!config.keyspace.empty()) {
-        std::cout << "DEBUG: Creating default schema for keyspace: " << config.keyspace << std::endl;
         // The schema will be created on-demand via LookupSchema
     }
 }
@@ -53,18 +51,15 @@ optional_ptr<SchemaCatalogEntry> CassandraCatalog::LookupSchema(CatalogTransacti
                                                                 const EntryLookupInfo &schema_lookup,
                                                                 OnEntryNotFound if_not_found) {
     auto schema_name = schema_lookup.GetEntryName();
-    std::cout << "DEBUG: LookupSchema called for: " << schema_name << std::endl;
     
     // For Cassandra, we should default to the configured keyspace if no schema specified
     if (schema_name.empty() || schema_name == "main") {
         schema_name = config.keyspace.empty() ? "sfpla" : config.keyspace;
-        std::cout << "DEBUG: Using default keyspace: " << schema_name << std::endl;
     }
     
     auto keyspace_ref = client->GetKeyspace(schema_name);
     CreateSchemaInfo schema_info;
     schema_info.schema = schema_name;
-    std::cout << "DEBUG: Creating schema entry for: " << schema_name << std::endl;
     return make_uniq<CassandraSchemaEntry>(*this, schema_info, keyspace_ref).release();
 }
 

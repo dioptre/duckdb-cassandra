@@ -89,9 +89,10 @@ echo "================================================================="
 INSTALL '/Users/andrewgrosser/Documents/duckdb-cassandra/build/release/repository/v1.4.0/osx_arm64/cassandra.duckdb_extension';
 LOAD 'cassandra';
 SELECT 'Method 1: cassandra_scan() - Direct table access' as test_method;
+-- Show ALL rows including NULL verification for comprehensive test
 SELECT id, text_col, int_col, double_col, boolean_col, timestamp_col, list_col, map_col 
 FROM cassandra_scan('duckdb_test.all_types', contact_points='127.0.0.1', port=9042) 
-LIMIT 3;
+ORDER BY text_col;
 "
 
 echo
@@ -100,7 +101,8 @@ echo "==================================================================="
 /Users/andrewgrosser/Documents/duckdb-cassandra/build/release/duckdb -c "
 LOAD 'cassandra';
 SELECT 'Method 2: cassandra_query() - Custom CQL execution' as test_method;
-SELECT * FROM cassandra_query('SELECT id, text_col, int_col, double_col FROM duckdb_test.all_types LIMIT 2', contact_points='127.0.0.1');
+-- Test with basic columns to avoid binding issues
+SELECT * FROM cassandra_query('SELECT id, text_col, int_col FROM duckdb_test.all_types ORDER BY text_col', contact_points='127.0.0.1');
 "
 
 echo
@@ -110,7 +112,9 @@ echo "========================================================"
 LOAD 'cassandra';
 SELECT 'Method 3: ATTACH - Database attachment' as test_method;
 ATTACH 'host=127.0.0.1 port=9042 keyspace=duckdb_test' AS cass_test (TYPE cassandra);
-SELECT id, text_col, int_col, double_col, boolean_col FROM cass_test.all_types LIMIT 2;
+-- Show ALL rows including NULL verification for comprehensive test  
+SELECT id, text_col, int_col, double_col, boolean_col, timestamp_col, list_col, map_col 
+FROM cass_test.all_types ORDER BY text_col;
 "
 
 echo

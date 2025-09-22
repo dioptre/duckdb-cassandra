@@ -119,8 +119,64 @@ optional_ptr<CatalogEntry> CassandraSchemaEntry::LookupEntry(CatalogTransaction 
                 cass_result_column_name(result, i, &column_name, &name_length);
                 string col_name(column_name, name_length);
                 
-                // Use VARCHAR for all types to match execution expectations
-                LogicalType duckdb_type = LogicalType::VARCHAR;
+                // Map Cassandra types to proper DuckDB types
+                CassValueType cass_type = cass_result_column_type(result, i);
+                LogicalType duckdb_type;
+                
+                switch (cass_type) {
+                    case CASS_VALUE_TYPE_UUID:
+                    case CASS_VALUE_TYPE_TIMEUUID:
+                        duckdb_type = LogicalType::UUID;
+                        break;
+                    case CASS_VALUE_TYPE_TIMESTAMP:
+                        duckdb_type = LogicalType::TIMESTAMP_TZ;
+                        break;
+                    case CASS_VALUE_TYPE_DOUBLE:
+                        duckdb_type = LogicalType::DOUBLE;
+                        break;
+                    case CASS_VALUE_TYPE_INT:
+                        duckdb_type = LogicalType::INTEGER;
+                        break;
+                    case CASS_VALUE_TYPE_BIGINT:
+                        duckdb_type = LogicalType::BIGINT;
+                        break;
+                    case CASS_VALUE_TYPE_BOOLEAN:
+                        duckdb_type = LogicalType::BOOLEAN;
+                        break;
+                    case CASS_VALUE_TYPE_FLOAT:
+                        duckdb_type = LogicalType::FLOAT;
+                        break;
+                    case CASS_VALUE_TYPE_SMALL_INT:
+                        duckdb_type = LogicalType::SMALLINT;
+                        break;
+                    case CASS_VALUE_TYPE_TINY_INT:
+                        duckdb_type = LogicalType::TINYINT;
+                        break;
+                    case CASS_VALUE_TYPE_DATE:
+                        duckdb_type = LogicalType::DATE;
+                        break;
+                    case CASS_VALUE_TYPE_TIME:
+                        duckdb_type = LogicalType::TIME;
+                        break;
+                    case CASS_VALUE_TYPE_INET:
+                        duckdb_type = LogicalType::VARCHAR;  // INET as string
+                        break;
+                    case CASS_VALUE_TYPE_DECIMAL:
+                    case CASS_VALUE_TYPE_VARINT:
+                        duckdb_type = LogicalType::VARCHAR;  // Large numbers as strings
+                        break;
+                    case CASS_VALUE_TYPE_BLOB:
+                        duckdb_type = LogicalType::BLOB;
+                        break;
+                    case CASS_VALUE_TYPE_LIST:
+                    case CASS_VALUE_TYPE_SET:
+                    case CASS_VALUE_TYPE_MAP:
+                        duckdb_type = LogicalType::VARCHAR;  // Collections as JSON strings
+                        break;
+                    default:
+                        duckdb_type = LogicalType::VARCHAR;
+                        break;
+                }
                 
                 table_info.columns.AddColumn(ColumnDefinition(col_name, duckdb_type));
             }

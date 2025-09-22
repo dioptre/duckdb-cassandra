@@ -219,18 +219,86 @@ static void CassandraScanExecute(ClientContext &context, TableFunctionInput &dat
         for (size_t col_idx = 0; col_idx < column_count && col_idx < output.ColumnCount(); col_idx++) {
             const CassValue* value = cass_row_get_column(row, col_idx);
             auto &vector = output.data[col_idx];
-            auto validity = FlatVector::Validity(vector);
             
-            // Handle NULL values first
-            if (cass_value_is_null(value)) {
-                validity.SetInvalid(row_count);
-            } else {
-                validity.SetValid(row_count);
+            // Handle NULL values first  
+            bool is_null = cass_value_is_null(value);
+            if (is_null) {
+                FlatVector::Validity(vector).SetInvalid(row_count);  // Direct call like DuckDB internals
                 
+                // Store appropriate default values even for NULLs (required by DuckDB)
                 LogicalType expected_type = vector.GetType();
-                CassValueType value_type = cass_value_type(value);
-                
                 switch (expected_type.id()) {
+                    case LogicalTypeId::UUID: {
+                        auto data_ptr = FlatVector::GetData<hugeint_t>(vector);
+                        data_ptr[row_count] = hugeint_t(0);
+                        break;
+                    }
+                    case LogicalTypeId::TIMESTAMP_TZ: {
+                        auto data_ptr = FlatVector::GetData<timestamp_t>(vector);
+                        data_ptr[row_count] = timestamp_t(0);
+                        break;
+                    }
+                    case LogicalTypeId::DOUBLE: {
+                        auto data_ptr = FlatVector::GetData<double>(vector);
+                        data_ptr[row_count] = 0.0;
+                        break;
+                    }
+                    case LogicalTypeId::INTEGER: {
+                        auto data_ptr = FlatVector::GetData<int32_t>(vector);
+                        data_ptr[row_count] = 0;
+                        break;
+                    }
+                    case LogicalTypeId::BIGINT: {
+                        auto data_ptr = FlatVector::GetData<int64_t>(vector);
+                        data_ptr[row_count] = 0;
+                        break;
+                    }
+                    case LogicalTypeId::BOOLEAN: {
+                        auto data_ptr = FlatVector::GetData<bool>(vector);
+                        data_ptr[row_count] = false;
+                        break;
+                    }
+                    case LogicalTypeId::FLOAT: {
+                        auto data_ptr = FlatVector::GetData<float>(vector);
+                        data_ptr[row_count] = 0.0f;
+                        break;
+                    }
+                    case LogicalTypeId::SMALLINT: {
+                        auto data_ptr = FlatVector::GetData<int16_t>(vector);
+                        data_ptr[row_count] = 0;
+                        break;
+                    }
+                    case LogicalTypeId::TINYINT: {
+                        auto data_ptr = FlatVector::GetData<int8_t>(vector);
+                        data_ptr[row_count] = 0;
+                        break;
+                    }
+                    case LogicalTypeId::DATE: {
+                        auto data_ptr = FlatVector::GetData<date_t>(vector);
+                        data_ptr[row_count] = date_t(0);
+                        break;
+                    }
+                    case LogicalTypeId::TIME: {
+                        auto data_ptr = FlatVector::GetData<dtime_t>(vector);
+                        data_ptr[row_count] = dtime_t(0);
+                        break;
+                    }
+                    case LogicalTypeId::BLOB:
+                    case LogicalTypeId::VARCHAR:
+                    default: {
+                        auto data_ptr = FlatVector::GetData<string_t>(vector);
+                        data_ptr[row_count] = StringVector::AddString(vector, "", 0);
+                        break;
+                    }
+                }
+                continue;  // Skip regular data processing for NULL values
+            }
+            
+            // Only process non-NULL values
+            LogicalType expected_type = vector.GetType();
+            CassValueType value_type = cass_value_type(value);
+            
+            switch (expected_type.id()) {
                     case LogicalTypeId::UUID: {
                         auto data_ptr = FlatVector::GetData<hugeint_t>(vector);
                         CassUuid uuid_val;
@@ -241,7 +309,7 @@ static void CassandraScanExecute(ClientContext &context, TableFunctionInput &dat
                         if (UUID::FromCString(uuid_str, strlen(uuid_str), uuid_hugeint)) {
                             data_ptr[row_count] = uuid_hugeint;
                         } else {
-                            validity.SetInvalid(row_count);
+                            FlatVector::Validity(vector).SetInvalid(row_count);
                         }
                         break;
                     }
@@ -517,7 +585,6 @@ static void CassandraScanExecute(ClientContext &context, TableFunctionInput &dat
                         data_ptr[row_count] = StringVector::AddString(vector, string_val);
                         break;
                     }
-                }
             }
         }
         

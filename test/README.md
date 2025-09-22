@@ -9,3 +9,10 @@ or
 ```bash
 make test_debug
 ```
+
+## Testing Astra connection
+
+```
+g++ -I../build/release/datastax-install/include -L../build/release/datastax-install/lib -L/opt/homebrew/lib astra_connection_test.cpp -lcassandra_static -luv -lssl -lcrypto -lz -o
+      astra_test && ./astra_test
+```

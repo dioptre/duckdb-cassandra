@@ -48,6 +48,24 @@ CassandraConfig CassandraConfig::FromConnectionString(const std::string& connect
                 config.use_ssl = true;
             } else if (key == "verify_peer") {
                 config.verify_peer_cert = (value == "true" || value == "1" || value == "on");
+            } else if (key == "client_id") {
+                config.client_id = value;
+                config.use_astra = true;
+            } else if (key == "client_secret") {
+                config.client_secret = value;
+                config.use_astra = true;
+            } else if (key == "astra_host") {
+                config.astra_host = value;
+            } else if (key == "astra_port") {
+                config.astra_port = std::stoi(value);
+            } else if (key == "astra_dc") {
+                config.astra_dc = value;
+            } else if (key == "astra_ca_cert") {
+                config.astra_ca_cert = value;
+            } else if (key == "astra_client_cert") {
+                config.astra_client_cert = value;
+            } else if (key == "astra_client_key") {
+                config.astra_client_key = value;
             }
         }
     }

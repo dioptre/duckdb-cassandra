@@ -1,0 +1,16 @@
+{
+  "host": "d150140c-a487-44af-bf29-202e09205631-us-east1.db.astra.datastax.com",
+  "port": 29080,
+  "cql_port": 29042,
+  "keyspace": "movies",
+  "localDC": "us-east1",
+  "caCertLocation": "./ca.crt",
+  "keyLocation": "./key",
+  "certLocation": "./cert",
+  "keyStoreLocation": "./identity.jks",
+  "keyStorePassword": "pWz0eT32O6nBZ1Pro",
+  "trustStoreLocation": "./trustStore.jks",
+  "trustStorePassword": "o7bQZ3cEXB609uIJT",
+  "csvLocation": "./data",
+  "pfxCertPassword": "faxmN6ko1yPe5q87K"
+}

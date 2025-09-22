@@ -1,5 +1,32 @@
 #!/bin/bash
 
+# Astra SSL Certificates
+ASTRA_CA_CERT="-----BEGIN CERTIFICATE-----
+MIIDtDCCApygAwIBAgICBnUwDQYJKoZIhvcNAQELBQAwezELMAkGA1UEBhMCVVMx
+CzAJBgNVBAgTAkNBMRQwEgYDVQQHEwtTYW50YSBDbGFyYTERMA8GA1UEChMIRGF0
+YVN0YXgxDjAMBgNVBAsTBUNsb3VkMSYwJAYDVQQDEx1jYS5kYi5hc3RyYS1wcm9k
+LmRhdGFzdGF4LmNvbTAeFw0yMTAxMjAyMDE2MDJaFw0zMTAxMjAyMDE2MDJaMHsx
+CzAJBgNVBAYTAlVTMQswCQYDVQQIEwJDQTEUMBIGA1UEBxMLU2FudGEgQ2xhcmEx
+ETAPBgNVBAoTCERhdGFTdGF4MQ4wDAYDVQQLEwVDbG91ZDEmMCQGA1UEAxMdY2Eu
+ZGIuYXN0cmEtcHJvZC5kYXRhc3RheC5jb20wggEiMA0GCSqGSIb3DQEBAQUAA4IB
+DwAwggEKAoIBAQDKOnpwcM7HAaWOvnfBkcEYL7wwBtpteNc4acXM1mTrog289Kxg
+sUQEgdOT2EfRiS3qhrPbZn7+eXYTA7nT9UX3xnnPwigTAmEQdQvf/AXa7r+GhpBo
+qo/CP0JXEdtrtA8KVDqWGxgnnpTNWbFmBEjCmG299/bFgWGmgvALjhwWHAUyT3sH
+hR10+UrtYG6CA0Az18rw+y0tfcIhGKHvjOtctfgnjDp5fiuH6vJEeHsOK8vgOJK6
+xBTbaWjfAPqIArpCWFugErUzTnmYm77mR3MjjfPFM+wrCMpXSONnm722vpCyjz1b
+w9bVdIY0GEtvdJzKHYQY/A+stNVmMZ1M1NzRAgMBAAGjQjBAMA4GA1UdDwEB/wQE
+AwIChDAdBgNVHSUEFjAUBggrBgEFBQcDAgYIKwYBBQUHAwEwDwYDVR0TAQH/BAUw
+AwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAVJw6dVTJUHG6yWUZPwWdk12RauFxH9++
+UB16fv0wLNy78BNYcV/VbNq/Qhymz9V/ZSMtmrJw2/lV4i7tgVMVFkaNPEeFtHOL
+0cWJmV6yuFlWWGjaZ3oHCAL9Awg4x6WQmtMoredcpRSAOGn9hX+IMenRF4OEI8lt
+G17zVGaMThZ7/OHzFIvgX5ynql9sRBXG0AjNsBG2QiP+0Xia9BGvvjkqAfxwp44C
+WacVsbbWFrc+reYmOfmoy8b1Flm/gXVP2DbjMYwHX5RKvPt2SQ7L2iXgaa1a4+g9
+ZJx/U3RFHKeFbwpRLFH703FA1W20139MimrSfinHiQSy+WEDs7P41w==
+-----END CERTIFICATE-----"
+
+ASTRA_CLIENT_CERT="$(cat test/bundle/cert)"
+ASTRA_CLIENT_KEY="$(cat test/bundle/key)"
+
 echo "🎯 DuckDB Cassandra Extension - COMPREHENSIVE TEST"
 echo "=================================================="
 
@@ -139,5 +166,63 @@ SELECT * FROM cassandra_scan('duckdb_test.all_types',
 "
 
 echo
-echo "9. Cleanup - Removing test data..."
+echo "9. Traditional Auth Test - Username/Password"
+echo "============================================"
+/Users/andrewgrosser/Documents/duckdb-cassandra/build/release/duckdb -c "
+LOAD 'cassandra';
+SELECT 'Traditional Username/Password Auth Test' as test_method;
+SELECT * FROM cassandra_scan('test.demo', 
+    contact_points='127.0.0.1',
+    port=9042,
+    username='cassandra',
+    password='cassandra'
+) LIMIT 2;
+"
+
+echo
+echo "10. Astra Token Test - Method 1: cassandra_scan()"
+echo "==============================================="
+/Users/andrewgrosser/Documents/duckdb-cassandra/build/release/duckdb -c "
+LOAD 'cassandra';
+SELECT 'Astra CLI Parameters Test - Method 1' as test_method;
+SELECT * FROM cassandra_scan('movies.all_types',
+    client_id='pZsmEXXItazOtLdNNqUduAjU',
+    client_secret='bb.ATqd52qWDUaKmo83,JE2-PjE9OQyE1L6wCNpSa8P76Qc1BNPKvu.ROfp.tDoSRGOL8vEwNLF-8kMbWRYcrR+hmOlkve7+xIpBF-Xf5DCtHUX7wwL-D7y0ti2yeZBh',
+    astra_host='d150140c-a487-44af-bf29-202e09205631-us-east1.db.astra.datastax.com',
+    astra_port=29042,
+    astra_ca_cert='$ASTRA_CA_CERT',
+    astra_client_cert='$ASTRA_CLIENT_CERT',
+    astra_client_key='$ASTRA_CLIENT_KEY'
+) LIMIT 3;
+"
+
+echo
+echo "10. Astra Token Test - Method 2: cassandra_query()"
+echo "================================================"
+/Users/andrewgrosser/Documents/duckdb-cassandra/build/release/duckdb -c "
+LOAD 'cassandra';
+SELECT 'Astra Token Test - Method 2' as test_method;
+SELECT * FROM cassandra_query('SELECT * FROM movies.all_types LIMIT 3',
+    client_id='pZsmEXXItazOtLdNNqUduAjU',
+    client_secret='bb.ATqd52qWDUaKmo83,JE2-PjE9OQyE1L6wCNpSa8P76Qc1BNPKvu.ROfp.tDoSRGOL8vEwNLF-8kMbWRYcrR+hmOlkve7+xIpBF-Xf5DCtHUX7wwL-D7y0ti2yeZBh',
+    astra_host='d150140c-a487-44af-bf29-202e09205631-us-east1.db.astra.datastax.com',
+    astra_port=29042,
+    astra_ca_cert='$ASTRA_CA_CERT',
+    astra_client_cert='$ASTRA_CLIENT_CERT',
+    astra_client_key='$ASTRA_CLIENT_KEY'
+);
+"
+
+echo
+echo "11. Astra Token Test - Method 3: ATTACH"
+echo "======================================"
+/Users/andrewgrosser/Documents/duckdb-cassandra/build/release/duckdb -c "
+LOAD 'cassandra';
+SELECT 'Astra Token Test - Method 3' as test_method;
+ATTACH 'keyspace=movies client_id=pZsmEXXItazOtLdNNqUduAjU client_secret=bb.ATqd52qWDUaKmo83,JE2-PjE9OQyE1L6wCNpSa8P76Qc1BNPKvu.ROfp.tDoSRGOL8vEwNLF-8kMbWRYcrR+hmOlkve7+xIpBF-Xf5DCtHUX7wwL-D7y0ti2yeZBh astra_host=d150140c-a487-44af-bf29-202e09205631-us-east1.db.astra.datastax.com astra_port=29042 astra_ca_cert=$ASTRA_CA_CERT astra_client_cert=$ASTRA_CLIENT_CERT astra_client_key=$ASTRA_CLIENT_KEY' AS astra_test (TYPE cassandra);
+SELECT * FROM astra_test.all_types LIMIT 3;
+"
+
+echo
+echo "12. Cleanup - Removing test data..."
 cqlsh localhost -e "DROP KEYSPACE IF EXISTS duckdb_test;" 2>/dev/null

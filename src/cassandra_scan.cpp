@@ -72,6 +72,24 @@ static unique_ptr<FunctionData> CassandraScanBind(ClientContext &context, TableF
         } else if (lower_key == "usercert") {
             bind_data->config.user_cert_hex = StringValue::Get(kv.second);
             bind_data->config.use_ssl = true;
+        } else if (lower_key == "client_id") {
+            bind_data->config.client_id = StringValue::Get(kv.second);
+            bind_data->config.use_astra = true;
+        } else if (lower_key == "client_secret") {
+            bind_data->config.client_secret = StringValue::Get(kv.second);
+            bind_data->config.use_astra = true;
+        } else if (lower_key == "astra_host") {
+            bind_data->config.astra_host = StringValue::Get(kv.second);
+        } else if (lower_key == "astra_port") {
+            bind_data->config.astra_port = IntegerValue::Get(kv.second);
+        } else if (lower_key == "astra_dc") {
+            bind_data->config.astra_dc = StringValue::Get(kv.second);
+        } else if (lower_key == "astra_ca_cert") {
+            bind_data->config.astra_ca_cert = StringValue::Get(kv.second);
+        } else if (lower_key == "astra_client_cert") {
+            bind_data->config.astra_client_cert = StringValue::Get(kv.second);
+        } else if (lower_key == "astra_client_key") {
+            bind_data->config.astra_client_key = StringValue::Get(kv.second);
         }
     }
     
@@ -615,6 +633,14 @@ CassandraScanFunction::CassandraScanFunction()
     named_parameters["certfile"] = LogicalType::VARCHAR;
     named_parameters["userkey"] = LogicalType::VARCHAR;
     named_parameters["usercert"] = LogicalType::VARCHAR;
+    named_parameters["client_id"] = LogicalType::VARCHAR;     // Astra client ID
+    named_parameters["client_secret"] = LogicalType::VARCHAR; // Astra client secret
+    named_parameters["astra_host"] = LogicalType::VARCHAR;    // Astra host
+    named_parameters["astra_port"] = LogicalType::INTEGER;    // Astra port
+    named_parameters["astra_dc"] = LogicalType::VARCHAR;      // Astra datacenter
+    named_parameters["astra_ca_cert"] = LogicalType::VARCHAR; // Astra CA cert
+    named_parameters["astra_client_cert"] = LogicalType::VARCHAR; // Astra client cert
+    named_parameters["astra_client_key"] = LogicalType::VARCHAR;  // Astra client key
 }
 
 // Custom query function implementation
@@ -639,6 +665,28 @@ static unique_ptr<FunctionData> CassandraQueryBind(ClientContext &context, Table
             bind_data->config.contact_points = StringValue::Get(kv.second);
         } else if (lower_key == "port") {
             bind_data->config.port = IntegerValue::Get(kv.second);
+        } else if (lower_key == "username") {
+            bind_data->config.username = StringValue::Get(kv.second);
+        } else if (lower_key == "password") {
+            bind_data->config.password = StringValue::Get(kv.second);
+        } else if (lower_key == "client_id") {
+            bind_data->config.client_id = StringValue::Get(kv.second);
+            bind_data->config.use_astra = true;
+        } else if (lower_key == "client_secret") {
+            bind_data->config.client_secret = StringValue::Get(kv.second);
+            bind_data->config.use_astra = true;
+        } else if (lower_key == "astra_host") {
+            bind_data->config.astra_host = StringValue::Get(kv.second);
+        } else if (lower_key == "astra_port") {
+            bind_data->config.astra_port = IntegerValue::Get(kv.second);
+        } else if (lower_key == "astra_dc") {
+            bind_data->config.astra_dc = StringValue::Get(kv.second);
+        } else if (lower_key == "astra_ca_cert") {
+            bind_data->config.astra_ca_cert = StringValue::Get(kv.second);
+        } else if (lower_key == "astra_client_cert") {
+            bind_data->config.astra_client_cert = StringValue::Get(kv.second);
+        } else if (lower_key == "astra_client_key") {
+            bind_data->config.astra_client_key = StringValue::Get(kv.second);
         }
     }
     
@@ -778,6 +826,14 @@ CassandraQueryFunction::CassandraQueryFunction()
     named_parameters["port"] = LogicalType::INTEGER;
     named_parameters["username"] = LogicalType::VARCHAR;
     named_parameters["password"] = LogicalType::VARCHAR;
+    named_parameters["client_id"] = LogicalType::VARCHAR;     // Astra client ID
+    named_parameters["client_secret"] = LogicalType::VARCHAR; // Astra client secret
+    named_parameters["astra_host"] = LogicalType::VARCHAR;    // Astra host
+    named_parameters["astra_port"] = LogicalType::INTEGER;    // Astra port
+    named_parameters["astra_dc"] = LogicalType::VARCHAR;      // Astra datacenter
+    named_parameters["astra_ca_cert"] = LogicalType::VARCHAR; // Astra CA cert
+    named_parameters["astra_client_cert"] = LogicalType::VARCHAR; // Astra client cert
+    named_parameters["astra_client_key"] = LogicalType::VARCHAR;  // Astra client key
 }
 
 } // namespace cassandra

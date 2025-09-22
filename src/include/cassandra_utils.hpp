@@ -24,6 +24,19 @@ struct CassandraConfig {
     std::string ca_cert_hex;        // Hex-encoded CA certificate
     bool verify_peer_cert = true;
     
+    // Astra authentication (manual configuration, no SCB needed)
+    bool use_astra = false;        // Flag to enable Astra mode
+    std::string client_id;         // Astra client ID
+    std::string client_secret;     // Astra client secret  
+    std::string astra_host;        // Astra host (from config.json)
+    int astra_port = 29042;        // Astra CQL port (from config.json)
+    std::string astra_dc;          // Astra datacenter (localDC)
+    
+    // Astra SSL certificates (as strings, not hex)
+    std::string astra_ca_cert;     // CA certificate content
+    std::string astra_client_cert; // Client certificate content
+    std::string astra_client_key;  // Private key content
+    
     static CassandraConfig FromConnectionString(const std::string& connection_string);
     
     // Helper methods for SSL

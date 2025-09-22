@@ -3,7 +3,7 @@
 #include "duckdb/common/exception.hpp"
 #include "duckdb/parser/constraint.hpp"
 #include <cassandra.h>
-#include <iostream>
+#include <iterator>
 
 namespace duckdb {
 namespace cassandra {
@@ -29,13 +29,64 @@ CassandraClient::~CassandraClient() {
 }
 
 void CassandraClient::Connect() {
-    // Configure cluster
-    cass_cluster_set_contact_points(cluster, config.contact_points.c_str());
-    cass_cluster_set_port(cluster, config.port);
-    
-    // Set credentials if provided
-    if (!config.username.empty()) {
-        cass_cluster_set_credentials(cluster, config.username.c_str(), config.password.c_str());
+    if (config.use_astra) {
+        // Manual Astra configuration (no SCB needed)
+        std::cout << "Configuring Astra connection manually..." << std::endl;
+        
+        // Set Astra host and port
+        cass_cluster_set_contact_points(cluster, config.astra_host.c_str());
+        cass_cluster_set_port(cluster, config.astra_port);
+        
+        // Set Astra credentials (clientId + clientSecret)
+        cass_cluster_set_credentials(cluster, config.client_id.c_str(), config.client_secret.c_str());
+        
+        // Configure SSL with Astra certificates
+        CassSsl* ssl = cass_ssl_new();
+        
+        if (!config.astra_ca_cert.empty()) {
+            // Use provided cert content - fix newline issues
+            std::string ca_cert = config.astra_ca_cert;
+            // Replace \n with actual newlines if needed
+            size_t pos = 0;
+            while ((pos = ca_cert.find("\\n", pos)) != std::string::npos) {
+                ca_cert.replace(pos, 2, "\n");
+                pos += 1;
+            }
+            cass_ssl_add_trusted_cert(ssl, ca_cert.c_str());
+        } 
+
+        if (!config.astra_client_cert.empty() && !config.astra_client_key.empty()) {
+            // Use provided cert/key content - fix newline issues
+            std::string client_cert = config.astra_client_cert;
+            std::string private_key = config.astra_client_key;
+            
+            // Replace \n with actual newlines if needed
+            size_t pos = 0;
+            while ((pos = client_cert.find("\\n", pos)) != std::string::npos) {
+                client_cert.replace(pos, 2, "\n");
+                pos += 1;
+            }
+            pos = 0;
+            while ((pos = private_key.find("\\n", pos)) != std::string::npos) {
+                private_key.replace(pos, 2, "\n");
+                pos += 1;
+            }
+            
+            cass_ssl_set_cert(ssl, client_cert.c_str());
+            cass_ssl_set_private_key(ssl, private_key.c_str(), "");
+        }
+        
+        cass_cluster_set_ssl(cluster, ssl);
+        cass_ssl_free(ssl);
+    } else {
+        // Traditional Cassandra configuration
+        cass_cluster_set_contact_points(cluster, config.contact_points.c_str());
+        cass_cluster_set_port(cluster, config.port);
+        
+        // Set credentials if provided
+        if (!config.username.empty()) {
+            cass_cluster_set_credentials(cluster, config.username.c_str(), config.password.c_str());
+        }
     }
     
     // Configure SSL if certificates are provided

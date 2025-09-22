@@ -1,17 +1,16 @@
 #!/bin/bash
 
-# Astra SSL Certificates
-ASTRA_CA_CERT="$(cat test/bundle/ca.crt)"
-ASTRA_CLIENT_CERT="$(cat test/bundle/cert)"
-ASTRA_CLIENT_KEY="$(cat test/bundle/key)"
+# Astra SSL Certificates - convert newlines to \n for inline use
+ASTRA_CA_CERT="$(cat test/bundle/ca.crt | tr '\n' '|' | sed 's/|/\\n/g')"
+ASTRA_CLIENT_CERT="$(cat test/bundle/cert | tr '\n' '|' | sed 's/|/\\n/g')"
+ASTRA_CLIENT_KEY="$(cat test/bundle/key | tr '\n' '|' | sed 's/|/\\n/g')"
 
 echo "🎯 DuckDB Cassandra Extension - COMPREHENSIVE TEST"
 echo "=================================================="
 
 # Create test keyspace and table with ALL Cassandra data types
 echo "1. Creating test keyspace and table with all data types..."
-cqlsh localhost -e "
-DROP KEYSPACE IF EXISTS duckdb_test;
+cqlsh localhost -e "DROP KEYSPACE IF EXISTS duckdb_test;
 CREATE KEYSPACE duckdb_test WITH replication = {'class': 'SimpleStrategy', 'replication_factor': 1};
 USE duckdb_test;
 
@@ -43,8 +42,7 @@ CREATE TABLE all_types (
 );"
 
 echo "2. Inserting 4 rows of test data with all data types..."
-cqlsh localhost -e "
-USE duckdb_test;
+cqlsh localhost -e "USE duckdb_test;
 
 INSERT INTO all_types (
     id, text_col, varchar_col, ascii_col, int_col, bigint_col, smallint_col, tinyint_col,
@@ -101,13 +99,23 @@ ORDER BY text_col;
 "
 
 echo
-echo "5. Testing DuckDB Cassandra Extension - Method 2: cassandra_query()"
+echo "5a. Testing DuckDB Cassandra Extension - Method 2: cassandra_query()"
 echo "==================================================================="
 /Users/andrewgrosser/Documents/duckdb-cassandra/build/release/duckdb -c "
 LOAD 'cassandra';
 SELECT 'Method 2: cassandra_query() - Custom CQL execution' as test_method;
 -- Test with basic columns to avoid binding issues
-SELECT * FROM cassandra_query('SELECT id, text_col, int_col FROM duckdb_test.all_types ORDER BY text_col', contact_points='127.0.0.1');
+SELECT * FROM cassandra_query('SELECT id, text_col, int_col FROM duckdb_test.all_types', contact_points='127.0.0.1');
+"
+
+echo
+echo "5b. Testing UNSUPPORTED ORDER BY DuckDB Cassandra Extension - Method 2: cassandra_query()"
+echo "==================================================================="
+/Users/andrewgrosser/Documents/duckdb-cassandra/build/release/duckdb -c "
+LOAD 'cassandra';
+SELECT 'Method 2: cassandra_query() - Custom CQL execution' as test_method;
+-- Test with basic columns to avoid binding issues
+SELECT * FROM cassandra_query('SELECT id, text_col, int_col FROM duckdb_test.all_types order by text_col', contact_points='127.0.0.1');
 "
 
 echo
@@ -197,7 +205,7 @@ echo "======================================"
 /Users/andrewgrosser/Documents/duckdb-cassandra/build/release/duckdb -c "
 LOAD 'cassandra';
 SELECT 'Astra Token Test - Method 3' as test_method;
-ATTACH 'keyspace=movies client_id=pZsmEXXItazOtLdNNqUduAjU client_secret=bb.ATqd52qWDUaKmo83,JE2-PjE9OQyE1L6wCNpSa8P76Qc1BNPKvu.ROfp.tDoSRGOL8vEwNLF-8kMbWRYcrR+hmOlkve7+xIpBF-Xf5DCtHUX7wwL-D7y0ti2yeZBh astra_host=d150140c-a487-44af-bf29-202e09205631-us-east1.db.astra.datastax.com astra_port=29042 astra_ca_cert=$ASTRA_CA_CERT astra_client_cert=$ASTRA_CLIENT_CERT astra_client_key=$ASTRA_CLIENT_KEY' AS astra_test (TYPE cassandra);
+ATTACH \"keyspace=movies client_id=pZsmEXXItazOtLdNNqUduAjU client_secret=bb.ATqd52qWDUaKmo83,JE2-PjE9OQyE1L6wCNpSa8P76Qc1BNPKvu.ROfp.tDoSRGOL8vEwNLF-8kMbWRYcrR+hmOlkve7+xIpBF-Xf5DCtHUX7wwL-D7y0ti2yeZBh astra_host=d150140c-a487-44af-bf29-202e09205631-us-east1.db.astra.datastax.com astra_port=29042 astra_ca_cert=$ASTRA_CA_CERT astra_client_cert=$ASTRA_CLIENT_CERT astra_client_key=$ASTRA_CLIENT_KEY\" AS astra_test (TYPE cassandra);
 SELECT * FROM astra_test.all_types LIMIT 3;
 "
 

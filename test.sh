@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# Astra SSL Certificates - convert newlines to \n for inline use
-ASTRA_CA_CERT="$(cat test/bundle/ca.crt | tr '\n' '|' | sed 's/|/\\n/g')"
-ASTRA_CLIENT_CERT="$(cat test/bundle/cert | tr '\n' '|' | sed 's/|/\\n/g')"
-ASTRA_CLIENT_KEY="$(cat test/bundle/key | tr '\n' '|' | sed 's/|/\\n/g')"
+# Astra SSL Certificates - base64 encode for clean parameter passing
+ASTRA_CA_CERT_B64="$(base64 -i test/bundle/ca.crt)"
+ASTRA_CLIENT_CERT_B64="$(base64 -i test/bundle/cert)"
+ASTRA_CLIENT_KEY_B64="$(base64 -i test/bundle/key)"
 
 echo "🎯 DuckDB Cassandra Extension - COMPREHENSIVE TEST"
 echo "=================================================="
@@ -176,9 +176,9 @@ SELECT * FROM cassandra_scan('movies.all_types',
     client_secret='bb.ATqd52qWDUaKmo83,JE2-PjE9OQyE1L6wCNpSa8P76Qc1BNPKvu.ROfp.tDoSRGOL8vEwNLF-8kMbWRYcrR+hmOlkve7+xIpBF-Xf5DCtHUX7wwL-D7y0ti2yeZBh',
     astra_host='d150140c-a487-44af-bf29-202e09205631-us-east1.db.astra.datastax.com',
     astra_port=29042,
-    astra_ca_cert='$ASTRA_CA_CERT',
-    astra_client_cert='$ASTRA_CLIENT_CERT',
-    astra_client_key='$ASTRA_CLIENT_KEY'
+    astra_ca_cert_b64='$ASTRA_CA_CERT_B64',
+    astra_client_cert_b64='$ASTRA_CLIENT_CERT_B64',
+    astra_client_key_b64='$ASTRA_CLIENT_KEY_B64'
 ) LIMIT 3;
 "
 
@@ -193,9 +193,9 @@ SELECT * FROM cassandra_query('SELECT * FROM movies.all_types LIMIT 3',
     client_secret='bb.ATqd52qWDUaKmo83,JE2-PjE9OQyE1L6wCNpSa8P76Qc1BNPKvu.ROfp.tDoSRGOL8vEwNLF-8kMbWRYcrR+hmOlkve7+xIpBF-Xf5DCtHUX7wwL-D7y0ti2yeZBh',
     astra_host='d150140c-a487-44af-bf29-202e09205631-us-east1.db.astra.datastax.com',
     astra_port=29042,
-    astra_ca_cert='$ASTRA_CA_CERT',
-    astra_client_cert='$ASTRA_CLIENT_CERT',
-    astra_client_key='$ASTRA_CLIENT_KEY'
+    astra_ca_cert_b64='$ASTRA_CA_CERT_B64',
+    astra_client_cert_b64='$ASTRA_CLIENT_CERT_B64',
+    astra_client_key_b64='$ASTRA_CLIENT_KEY_B64'
 );
 "
 
@@ -205,7 +205,7 @@ echo "======================================"
 /Users/andrewgrosser/Documents/duckdb-cassandra/build/release/duckdb -c "
 LOAD 'cassandra';
 SELECT 'Astra Token Test - Method 3' as test_method;
-ATTACH \"keyspace=movies client_id=pZsmEXXItazOtLdNNqUduAjU client_secret=bb.ATqd52qWDUaKmo83,JE2-PjE9OQyE1L6wCNpSa8P76Qc1BNPKvu.ROfp.tDoSRGOL8vEwNLF-8kMbWRYcrR+hmOlkve7+xIpBF-Xf5DCtHUX7wwL-D7y0ti2yeZBh astra_host=d150140c-a487-44af-bf29-202e09205631-us-east1.db.astra.datastax.com astra_port=29042 astra_ca_cert=$ASTRA_CA_CERT astra_client_cert=$ASTRA_CLIENT_CERT astra_client_key=$ASTRA_CLIENT_KEY\" AS astra_test (TYPE cassandra);
+ATTACH 'keyspace=movies client_id=pZsmEXXItazOtLdNNqUduAjU client_secret=bb.ATqd52qWDUaKmo83,JE2-PjE9OQyE1L6wCNpSa8P76Qc1BNPKvu.ROfp.tDoSRGOL8vEwNLF-8kMbWRYcrR+hmOlkve7+xIpBF-Xf5DCtHUX7wwL-D7y0ti2yeZBh astra_host=d150140c-a487-44af-bf29-202e09205631-us-east1.db.astra.datastax.com astra_port=29042 astra_ca_cert_b64=$ASTRA_CA_CERT_B64 astra_client_cert_b64=$ASTRA_CLIENT_CERT_B64 astra_client_key_b64=$ASTRA_CLIENT_KEY_B64' AS astra_test (TYPE cassandra);
 SELECT * FROM astra_test.all_types LIMIT 3;
 "
 

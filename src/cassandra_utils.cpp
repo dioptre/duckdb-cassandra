@@ -66,6 +66,12 @@ CassandraConfig CassandraConfig::FromConnectionString(const std::string& connect
                 config.astra_client_cert = value;
             } else if (key == "astra_client_key") {
                 config.astra_client_key = value;
+            } else if (key == "astra_ca_cert_b64") {
+                config.astra_ca_cert_b64 = value;
+            } else if (key == "astra_client_cert_b64") {
+                config.astra_client_cert_b64 = value;
+            } else if (key == "astra_client_key_b64") {
+                config.astra_client_key_b64 = value;
             }
         }
     }
@@ -79,6 +85,24 @@ std::string CassandraConfig::DecodeHexToString(const std::string& hex) const {
         std::string byte_str = hex.substr(i, 2);
         char byte = static_cast<char>(std::stoul(byte_str, nullptr, 16));
         result += byte;
+    }
+    return result;
+}
+
+std::string CassandraConfig::DecodeBase64ToString(const std::string& base64) const {
+    // Simple base64 decoder implementation
+    const std::string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    std::string result;
+    int val = 0, valb = -8;
+    
+    for (unsigned char c : base64) {
+        if (chars.find(c) == std::string::npos) break;
+        val = (val << 6) + chars.find(c);
+        valb += 6;
+        if (valb >= 0) {
+            result.push_back(char((val >> valb) & 0xFF));
+            valb -= 8;
+        }
     }
     return result;
 }

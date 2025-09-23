@@ -37,10 +37,16 @@ struct CassandraConfig {
     std::string astra_client_cert; // Client certificate content
     std::string astra_client_key;  // Private key content
     
+    // Base64 encoded Astra SSL certificates (alternative format)
+    std::string astra_ca_cert_b64;     // Base64 encoded CA certificate
+    std::string astra_client_cert_b64; // Base64 encoded client certificate
+    std::string astra_client_key_b64;  // Base64 encoded private key
+    
     static CassandraConfig FromConnectionString(const std::string& connection_string);
     
     // Helper methods for SSL
     std::string DecodeHexToString(const std::string& hex) const;
+    std::string DecodeBase64ToString(const std::string& base64) const;
     bool HasSSLConfig() const;
 };
 

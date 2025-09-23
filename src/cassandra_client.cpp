@@ -43,22 +43,35 @@ void CassandraClient::Connect() {
         // Configure SSL with Astra certificates
         CassSsl* ssl = cass_ssl_new();
         
-        if (!config.astra_ca_cert.empty()) {
-            // Use provided cert content - fix newline issues
-            std::string ca_cert = config.astra_ca_cert;
+        // Handle CA certificate - prefer base64 if available
+        std::string ca_cert;
+        if (!config.astra_ca_cert_b64.empty()) {
+            ca_cert = config.DecodeBase64ToString(config.astra_ca_cert_b64);
+        } else if (!config.astra_ca_cert.empty()) {
+            ca_cert = config.astra_ca_cert;
             // Replace \n with actual newlines if needed
             size_t pos = 0;
             while ((pos = ca_cert.find("\\n", pos)) != std::string::npos) {
                 ca_cert.replace(pos, 2, "\n");
                 pos += 1;
             }
+        }
+        
+        if (!ca_cert.empty()) {
             cass_ssl_add_trusted_cert(ssl, ca_cert.c_str());
         } 
 
-        if (!config.astra_client_cert.empty() && !config.astra_client_key.empty()) {
-            // Use provided cert/key content - fix newline issues
-            std::string client_cert = config.astra_client_cert;
-            std::string private_key = config.astra_client_key;
+        // Handle client certificate and key - prefer base64 if available
+        std::string client_cert, private_key;
+        bool has_client_certs = false;
+        
+        if (!config.astra_client_cert_b64.empty() && !config.astra_client_key_b64.empty()) {
+            client_cert = config.DecodeBase64ToString(config.astra_client_cert_b64);
+            private_key = config.DecodeBase64ToString(config.astra_client_key_b64);
+            has_client_certs = true;
+        } else if (!config.astra_client_cert.empty() && !config.astra_client_key.empty()) {
+            client_cert = config.astra_client_cert;
+            private_key = config.astra_client_key;
             
             // Replace \n with actual newlines if needed
             size_t pos = 0;
@@ -71,7 +84,10 @@ void CassandraClient::Connect() {
                 private_key.replace(pos, 2, "\n");
                 pos += 1;
             }
-            
+            has_client_certs = true;
+        }
+        
+        if (has_client_certs) {
             cass_ssl_set_cert(ssl, client_cert.c_str());
             cass_ssl_set_private_key(ssl, private_key.c_str(), "");
         }

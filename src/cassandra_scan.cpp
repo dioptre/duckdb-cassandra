@@ -4,6 +4,7 @@
 #include "cassandra_types.hpp"
 #include "duckdb/common/types/uuid.hpp"
 #include "duckdb/common/types/timestamp.hpp"
+#include "duckdb/common/shared_ptr.hpp"
 
 namespace duckdb {
 namespace cassandra {
@@ -11,7 +12,7 @@ namespace cassandra {
 // CassandraScanBindData is now defined in cassandra_scan.hpp
 
 struct CassandraScanGlobalState : public GlobalTableFunctionState {
-    unique_ptr<CassandraClient> client;
+    shared_ptr<CassandraClient> client;
     CassIterator* result_iterator;
     const CassResult* result;
     bool finished;
@@ -106,8 +107,17 @@ static unique_ptr<FunctionData> CassandraScanBind(ClientContext &context, TableF
     }
     
     // Get schema by doing a LIMIT 1 query and extracting metadata
+    // Create or reuse connection during bind phase
     try {
-        auto client = make_uniq<CassandraClient>(bind_data->config);
+        shared_ptr<CassandraClient> client;
+        if (bind_data->reused_connection) {
+            // Use existing connection (e.g., from ATTACH catalog)
+            client = bind_data->reused_connection;
+        } else {
+            // Create new connection for direct function calls
+            bind_data->reused_connection = make_shared_ptr<CassandraClient>(bind_data->config);
+            client = bind_data->reused_connection;
+        }
         string schema_query = "SELECT * FROM " + bind_data->table_ref.keyspace_name + "." + bind_data->table_ref.table_name + " LIMIT 1";
         
         auto session = client->GetSession();
@@ -211,7 +221,12 @@ static unique_ptr<GlobalTableFunctionState> CassandraScanInitGlobal(ClientContex
     auto bind_data = input.bind_data->Cast<CassandraScanBindData>();
     auto result = make_uniq<CassandraScanGlobalState>();
     
-    result->client = make_uniq<CassandraClient>(bind_data.config);
+    // Reuse connection from bind phase
+    if (bind_data.reused_connection) {
+        result->client = bind_data.reused_connection;
+    } else {
+        result->client = make_shared_ptr<CassandraClient>(bind_data.config);
+    }
     
     // Execute the actual data query
     string query = "SELECT * FROM " + bind_data.table_ref.keyspace_name + "." + bind_data.table_ref.table_name;
@@ -729,8 +744,17 @@ static unique_ptr<FunctionData> CassandraQueryBind(ClientContext &context, Table
     }
     
     // For custom queries, execute to get schema
+    // Create or reuse connection during bind phase
     try {
-        auto client = make_uniq<CassandraClient>(bind_data->config);
+        shared_ptr<CassandraClient> client;
+        if (bind_data->reused_connection) {
+            // Use existing connection (e.g., from ATTACH catalog)
+            client = bind_data->reused_connection;
+        } else {
+            // Create new connection for direct function calls
+            bind_data->reused_connection = make_shared_ptr<CassandraClient>(bind_data->config);
+            client = bind_data->reused_connection;
+        }
         auto session = client->GetSession();
         CassStatement* statement = cass_statement_new(query.c_str(), 0);
         CassFuture* result_future = cass_session_execute(session, statement);
@@ -832,7 +856,12 @@ static unique_ptr<GlobalTableFunctionState> CassandraQueryInitGlobal(ClientConte
     auto bind_data = input.bind_data->Cast<CassandraScanBindData>();
     auto result = make_uniq<CassandraScanGlobalState>();
     
-    result->client = make_uniq<CassandraClient>(bind_data.config);
+    // Reuse connection from bind phase
+    if (bind_data.reused_connection) {
+        result->client = bind_data.reused_connection;
+    } else {
+        result->client = make_shared_ptr<CassandraClient>(bind_data.config);
+    }
     
     // Execute the custom CQL query
     string query = bind_data.filter_condition;

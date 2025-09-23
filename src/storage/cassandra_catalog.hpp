@@ -2,7 +2,11 @@
 
 #include "duckdb.hpp"
 #include "duckdb/catalog/catalog.hpp"
+#include "duckdb/common/shared_ptr.hpp"
 #include "../include/cassandra_utils.hpp"
+
+// Forward declaration
+namespace duckdb { namespace cassandra { class CassandraClient; } }
 
 namespace duckdb {
 namespace cassandra {
@@ -57,8 +61,11 @@ public:
 public:
     CassandraConfig config; // Make config public so table entries can access it
     
+    // Get shared client connection for table operations
+    shared_ptr<CassandraClient> GetSharedClient() const;
+    
 private:
-    unique_ptr<class CassandraClient> client;
+    shared_ptr<class CassandraClient> client;
 };
 
 } // namespace cassandra

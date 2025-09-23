@@ -4,6 +4,7 @@
 #include "duckdb/parser/parsed_data/create_schema_info.hpp"
 #include "duckdb/parser/parsed_data/drop_info.hpp"
 #include "duckdb/storage/database_size.hpp"
+#include "duckdb/common/shared_ptr.hpp"
 
 namespace duckdb {
 namespace cassandra {
@@ -12,7 +13,7 @@ CassandraCatalog::CassandraCatalog(AttachedDatabase &db, const string &name, con
                                    AccessMode access_mode, const CassandraConfig &config)
     : Catalog(db), config(config) {
     
-    client = make_uniq<CassandraClient>(config);
+    client = make_shared_ptr<CassandraClient>(config);
 }
 
 CassandraCatalog::~CassandraCatalog() = default;
@@ -139,6 +140,10 @@ bool CassandraCatalog::InMemory() {
 
 string CassandraCatalog::GetDBPath() {
     return GetName();
+}
+
+shared_ptr<CassandraClient> CassandraCatalog::GetSharedClient() const {
+    return client;
 }
 
 } // namespace cassandra

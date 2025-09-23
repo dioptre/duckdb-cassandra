@@ -93,10 +93,10 @@ optional_ptr<CatalogEntry> CassandraSchemaEntry::LookupEntry(CatalogTransaction 
     table_info.table = entry_name;
     table_info.schema = keyspace_ref.keyspace_name;
     
-    // Get REAL columns from Cassandra dynamically
+    // Get REAL columns from Cassandra dynamically - use shared connection for ATTACH
     try {
         auto &cassandra_catalog = catalog.Cast<CassandraCatalog>();
-        auto client = make_uniq<CassandraClient>(cassandra_catalog.config);
+        auto client = cassandra_catalog.GetSharedClient();
         
         string schema_query = "SELECT * FROM " + keyspace_ref.keyspace_name + "." + entry_name + " LIMIT 1";
         auto session = client->GetSession();

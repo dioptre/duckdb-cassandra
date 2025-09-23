@@ -254,6 +254,8 @@ LOAD 'cassandra';
 SELECT 'Internal DB Test - Method 3' as test_method;
 ATTACH 'host=db.v4.sourcetable.com port=9042 keyspace=mlk ssl=true certfile_b64=$INTERNAL_CA_CERT_B64 usercert_b64=$INTERNAL_CLIENT_CERT_B64 userkey_b64=$INTERNAL_CLIENT_KEY_B64' AS internal_db (TYPE cassandra);
 SELECT * FROM internal_db.orgs LIMIT 5;
+select 'Connection should be cached' as cache_test;
+SELECT * FROM internal_db.orgs LIMIT 5;
 "
 
 echo

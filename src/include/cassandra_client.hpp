@@ -44,8 +44,12 @@ public:
     // Execute CQL query and return results
     unique_ptr<QueryResult> ExecuteQuery(const string &query);
     
-    // Get access to the session for direct query execution
-    CassSession* GetSession() const { return session; }
+    // Get access to the session for direct query execution (with connection recovery)
+    CassSession* GetSession();
+    
+    // Connection recovery methods
+    bool IsConnected() const;
+    void ResetConnection();
 
 private:
     CassandraConfig config;
@@ -55,6 +59,10 @@ private:
     
     void Connect();
     void Disconnect();
+    
+    // Connection state tracking
+    mutable std::mutex connection_mutex;
+    mutable bool connection_valid;
 };
 
 } // namespace cassandra

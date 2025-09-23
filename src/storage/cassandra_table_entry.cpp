@@ -19,9 +19,12 @@ TableFunction CassandraTableEntry::GetScanFunction(ClientContext &context, uniqu
     auto cassandra_bind_data = make_uniq<CassandraScanBindData>();
     cassandra_bind_data->table_ref = table_ref;
     
-    // Get the connection config from the catalog
+    // Get the connection config and shared client from the catalog
     auto &cassandra_catalog = catalog.Cast<CassandraCatalog>();
     cassandra_bind_data->config = cassandra_catalog.config;
+    
+    // Reuse the catalog's connection to avoid creating new connections
+    cassandra_bind_data->reused_connection = cassandra_catalog.GetSharedClient();
     
     bind_data = std::move(cassandra_bind_data);
     

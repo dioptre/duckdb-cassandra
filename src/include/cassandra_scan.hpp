@@ -14,6 +14,7 @@ struct CassandraScanBindData : public TableFunctionData {
     CassandraTableRef table_ref;
     CassandraConfig config;
     string filter_condition;
+    shared_ptr<CassandraClient> reused_connection;
 };
 
 class CassandraScanFunction : public TableFunction {

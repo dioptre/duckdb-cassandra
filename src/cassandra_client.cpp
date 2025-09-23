@@ -4,16 +4,18 @@
 #include "duckdb/parser/constraint.hpp"
 #include <cassandra.h>
 #include <iterator>
+#include <mutex>
 
 namespace duckdb {
 namespace cassandra {
 
-CassandraClient::CassandraClient(const CassandraConfig &config) : config(config), cluster(nullptr), session(nullptr) {
+CassandraClient::CassandraClient(const CassandraConfig &config) : config(config), cluster(nullptr), session(nullptr), connection_valid(false) {
     // Initialize DataStax C++ driver
     cluster = cass_cluster_new();
     session = cass_session_new();
     
     Connect();
+    connection_valid = true;
 }
 
 CassandraClient::~CassandraClient() {
@@ -416,6 +418,67 @@ void CassandraClient::GetTableInfo(const string &keyspace_name,
 unique_ptr<QueryResult> CassandraClient::ExecuteQuery(const string &query) {
     // TODO: Execute CQL query and return results
     throw NotImplementedException("ExecuteQuery not yet implemented");
+}
+
+bool CassandraClient::IsConnected() const {
+    std::lock_guard<std::mutex> lock(connection_mutex);
+    if (!connection_valid || !session) {
+        return false;
+    }
+    
+    // Try a simple query to test the connection
+    // Use a low-level query that should work on any Cassandra cluster
+    CassStatement* test_statement = cass_statement_new("SELECT release_version FROM system.local", 0);
+    cass_statement_set_request_timeout(test_statement, 5000); // 5 second timeout
+    
+    CassFuture* test_future = cass_session_execute(session, test_statement);
+    CassError error_code = cass_future_error_code(test_future);
+    
+    cass_future_free(test_future);
+    cass_statement_free(test_statement);
+    
+    return (error_code == CASS_OK);
+}
+
+void CassandraClient::ResetConnection() {
+    std::lock_guard<std::mutex> lock(connection_mutex);
+    
+    // Mark connection as invalid
+    connection_valid = false;
+    
+    // Disconnect and cleanup current session
+    Disconnect();
+    
+    // Free and recreate session and cluster
+    if (session) {
+        cass_session_free(session);
+        session = nullptr;
+    }
+    if (cluster) {
+        cass_cluster_free(cluster);
+        cluster = nullptr;
+    }
+    
+    // Recreate cluster and session
+    cluster = cass_cluster_new();
+    session = cass_session_new();
+    
+    // Reconnect
+    Connect();
+    connection_valid = true;
+}
+
+CassSession* CassandraClient::GetSession() {
+    // Check if connection is valid, if not attempt recovery
+    if (!IsConnected()) {
+        try {
+            ResetConnection();
+        } catch (const std::exception& e) {
+            // If recovery fails, still return the session - let the caller handle the error
+            // This prevents infinite recursion and provides better error reporting
+        }
+    }
+    return session;
 }
 
 } // namespace cassandra

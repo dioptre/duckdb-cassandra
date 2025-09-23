@@ -24,6 +24,11 @@ struct CassandraConfig {
     std::string ca_cert_hex;        // Hex-encoded CA certificate
     bool verify_peer_cert = true;
     
+    // Base64 encoded SSL certificates (alternative format)
+    std::string certfile_b64;       // Base64 encoded CA certificate
+    std::string userkey_b64;        // Base64 encoded private key  
+    std::string usercert_b64;       // Base64 encoded user certificate
+    
     // Astra authentication (manual configuration, no SCB needed)
     bool use_astra = false;        // Flag to enable Astra mode
     std::string client_id;         // Astra client ID

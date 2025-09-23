@@ -72,6 +72,12 @@ CassandraConfig CassandraConfig::FromConnectionString(const std::string& connect
                 config.astra_client_cert_b64 = value;
             } else if (key == "astra_client_key_b64") {
                 config.astra_client_key_b64 = value;
+            } else if (key == "certfile_b64") {
+                config.certfile_b64 = value;
+            } else if (key == "userkey_b64") {
+                config.userkey_b64 = value;
+            } else if (key == "usercert_b64") {
+                config.usercert_b64 = value;
             }
         }
     }
@@ -108,7 +114,8 @@ std::string CassandraConfig::DecodeBase64ToString(const std::string& base64) con
 }
 
 bool CassandraConfig::HasSSLConfig() const {
-    return use_ssl && (!cert_file_hex.empty() || !user_cert_hex.empty());
+    return use_ssl && (!cert_file_hex.empty() || !user_cert_hex.empty() || 
+                       !certfile_b64.empty() || !usercert_b64.empty());
 }
 
 unique_ptr<Catalog> CassandraAttachCatalog(optional_ptr<StorageExtensionInfo> storage_info,

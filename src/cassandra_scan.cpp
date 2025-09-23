@@ -96,6 +96,12 @@ static unique_ptr<FunctionData> CassandraScanBind(ClientContext &context, TableF
             bind_data->config.astra_client_cert_b64 = StringValue::Get(kv.second);
         } else if (lower_key == "astra_client_key_b64") {
             bind_data->config.astra_client_key_b64 = StringValue::Get(kv.second);
+        } else if (lower_key == "certfile_b64") {
+            bind_data->config.certfile_b64 = StringValue::Get(kv.second);
+        } else if (lower_key == "usercert_b64") {
+            bind_data->config.usercert_b64 = StringValue::Get(kv.second);
+        } else if (lower_key == "userkey_b64") {
+            bind_data->config.userkey_b64 = StringValue::Get(kv.second);
         }
     }
     
@@ -650,6 +656,9 @@ CassandraScanFunction::CassandraScanFunction()
     named_parameters["astra_ca_cert_b64"] = LogicalType::VARCHAR; // Base64 encoded Astra CA cert
     named_parameters["astra_client_cert_b64"] = LogicalType::VARCHAR; // Base64 encoded Astra client cert
     named_parameters["astra_client_key_b64"] = LogicalType::VARCHAR;  // Base64 encoded Astra client key
+    named_parameters["certfile_b64"] = LogicalType::VARCHAR; // Base64 encoded SSL CA cert
+    named_parameters["usercert_b64"] = LogicalType::VARCHAR; // Base64 encoded SSL user cert
+    named_parameters["userkey_b64"] = LogicalType::VARCHAR;  // Base64 encoded SSL private key
 }
 
 // Custom query function implementation
@@ -678,6 +687,14 @@ static unique_ptr<FunctionData> CassandraQueryBind(ClientContext &context, Table
             bind_data->config.username = StringValue::Get(kv.second);
         } else if (lower_key == "password") {
             bind_data->config.password = StringValue::Get(kv.second);
+        } else if (lower_key == "ssl" || lower_key == "use_ssl") {
+            bind_data->config.use_ssl = BooleanValue::Get(kv.second);
+        } else if (lower_key == "certfile") {
+            bind_data->config.cert_file_hex = StringValue::Get(kv.second);
+        } else if (lower_key == "usercert") {
+            bind_data->config.user_cert_hex = StringValue::Get(kv.second);
+        } else if (lower_key == "userkey") {
+            bind_data->config.user_key_hex = StringValue::Get(kv.second);
         } else if (lower_key == "client_id") {
             bind_data->config.client_id = StringValue::Get(kv.second);
             bind_data->config.use_astra = true;
@@ -702,6 +719,12 @@ static unique_ptr<FunctionData> CassandraQueryBind(ClientContext &context, Table
             bind_data->config.astra_client_cert_b64 = StringValue::Get(kv.second);
         } else if (lower_key == "astra_client_key_b64") {
             bind_data->config.astra_client_key_b64 = StringValue::Get(kv.second);
+        } else if (lower_key == "certfile_b64") {
+            bind_data->config.certfile_b64 = StringValue::Get(kv.second);
+        } else if (lower_key == "usercert_b64") {
+            bind_data->config.usercert_b64 = StringValue::Get(kv.second);
+        } else if (lower_key == "userkey_b64") {
+            bind_data->config.userkey_b64 = StringValue::Get(kv.second);
         }
     }
     
@@ -841,6 +864,11 @@ CassandraQueryFunction::CassandraQueryFunction()
     named_parameters["port"] = LogicalType::INTEGER;
     named_parameters["username"] = LogicalType::VARCHAR;
     named_parameters["password"] = LogicalType::VARCHAR;
+    named_parameters["ssl"] = LogicalType::BOOLEAN;
+    named_parameters["use_ssl"] = LogicalType::BOOLEAN;
+    named_parameters["certfile"] = LogicalType::VARCHAR;
+    named_parameters["userkey"] = LogicalType::VARCHAR;
+    named_parameters["usercert"] = LogicalType::VARCHAR;
     named_parameters["client_id"] = LogicalType::VARCHAR;     // Astra client ID
     named_parameters["client_secret"] = LogicalType::VARCHAR; // Astra client secret
     named_parameters["astra_host"] = LogicalType::VARCHAR;    // Astra host
@@ -852,6 +880,9 @@ CassandraQueryFunction::CassandraQueryFunction()
     named_parameters["astra_ca_cert_b64"] = LogicalType::VARCHAR; // Base64 encoded Astra CA cert
     named_parameters["astra_client_cert_b64"] = LogicalType::VARCHAR; // Base64 encoded Astra client cert
     named_parameters["astra_client_key_b64"] = LogicalType::VARCHAR;  // Base64 encoded Astra client key
+    named_parameters["certfile_b64"] = LogicalType::VARCHAR; // Base64 encoded SSL CA cert
+    named_parameters["usercert_b64"] = LogicalType::VARCHAR; // Base64 encoded SSL user cert
+    named_parameters["userkey_b64"] = LogicalType::VARCHAR;  // Base64 encoded SSL private key
 }
 
 } // namespace cassandra

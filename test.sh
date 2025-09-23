@@ -5,6 +5,11 @@ ASTRA_CA_CERT_B64="$(base64 -i test/bundle/ca.crt)"
 ASTRA_CLIENT_CERT_B64="$(base64 -i test/bundle/cert)"
 ASTRA_CLIENT_KEY_B64="$(base64 -i test/bundle/key)"
 
+# Internal DB SSL Certificates - base64 encode for clean parameter passing
+INTERNAL_CA_CERT_B64="$(base64 -i ~/.cassandra/rootCa.crt)"
+INTERNAL_CLIENT_CERT_B64="$(base64 -i ~/.cassandra/cassandra.crt)"
+INTERNAL_CLIENT_KEY_B64="$(base64 -i ~/.cassandra/cassandra.key)"
+
 echo "🎯 DuckDB Cassandra Extension - COMPREHENSIVE TEST"
 echo "=================================================="
 
@@ -210,5 +215,47 @@ SELECT * FROM astra_test.all_types LIMIT 3;
 "
 
 echo
-echo "12. Cleanup - Removing test data..."
+echo "12. Internal DB Test - Method 1: cassandra_scan()"
+echo "================================================="
+/Users/andrewgrosser/Documents/duckdb-cassandra/build/release/duckdb -c "
+LOAD 'cassandra';
+SELECT 'Internal DB Test - Method 1' as test_method;
+SELECT * FROM cassandra_scan('mlk.orgs',
+    contact_points='db.v4.sourcetable.com',
+    port=9042,
+    ssl=true,
+    certfile_b64='$INTERNAL_CA_CERT_B64',
+    usercert_b64='$INTERNAL_CLIENT_CERT_B64',
+    userkey_b64='$INTERNAL_CLIENT_KEY_B64'
+) LIMIT 5;
+"
+
+echo
+echo "13. Internal DB Test - Method 2: cassandra_query()"
+echo "=================================================="
+/Users/andrewgrosser/Documents/duckdb-cassandra/build/release/duckdb -c "
+LOAD 'cassandra';
+SELECT 'Internal DB Test - Method 2' as test_method;
+SELECT * FROM cassandra_query('SELECT * FROM mlk.orgs LIMIT 5',
+    contact_points='db.v4.sourcetable.com',
+    port=9042,
+    ssl=true,
+    certfile_b64='$INTERNAL_CA_CERT_B64',
+    usercert_b64='$INTERNAL_CLIENT_CERT_B64',
+    userkey_b64='$INTERNAL_CLIENT_KEY_B64'
+);
+"
+
+echo
+echo "14. Internal DB Test - Method 3: ATTACH"
+echo "======================================="
+/Users/andrewgrosser/Documents/duckdb-cassandra/build/release/duckdb -c "
+LOAD 'cassandra';
+SELECT 'Internal DB Test - Method 3' as test_method;
+ATTACH 'host=db.v4.sourcetable.com port=9042 keyspace=mlk ssl=true certfile_b64=$INTERNAL_CA_CERT_B64 usercert_b64=$INTERNAL_CLIENT_CERT_B64 userkey_b64=$INTERNAL_CLIENT_KEY_B64' AS internal_db (TYPE cassandra);
+SELECT * FROM internal_db.orgs LIMIT 5;
+"
+
+echo
+echo "15. Cleanup - Removing test data..."
 cqlsh localhost -e "DROP KEYSPACE IF EXISTS duckdb_test;" 2>/dev/null

@@ -119,17 +119,33 @@ void CassandraClient::Connect() {
             cass_ssl_set_verify_flags(ssl, CASS_SSL_VERIFY_NONE);
         }
         
-        // Add CA certificate if provided
-        if (!config.ca_cert_hex.empty()) {
-            std::string ca_cert_pem = config.DecodeHexToString(config.ca_cert_hex);
+        // Add CA certificate if provided - prefer base64 format
+        std::string ca_cert_pem;
+        if (!config.certfile_b64.empty()) {
+            ca_cert_pem = config.DecodeBase64ToString(config.certfile_b64);
+        } else if (!config.ca_cert_hex.empty()) {
+            ca_cert_pem = config.DecodeHexToString(config.ca_cert_hex);
+        }
+        
+        if (!ca_cert_pem.empty()) {
             cass_ssl_add_trusted_cert(ssl, ca_cert_pem.c_str());
         }
         
-        // Add client certificate and key if provided
-        if (!config.user_cert_hex.empty() && !config.user_key_hex.empty()) {
-            std::string user_cert_pem = config.DecodeHexToString(config.user_cert_hex);
-            std::string user_key_pem = config.DecodeHexToString(config.user_key_hex);
-            
+        // Add client certificate and key if provided - prefer base64 format
+        std::string user_cert_pem, user_key_pem;
+        bool has_client_certs = false;
+        
+        if (!config.usercert_b64.empty() && !config.userkey_b64.empty()) {
+            user_cert_pem = config.DecodeBase64ToString(config.usercert_b64);
+            user_key_pem = config.DecodeBase64ToString(config.userkey_b64);
+            has_client_certs = true;
+        } else if (!config.user_cert_hex.empty() && !config.user_key_hex.empty()) {
+            user_cert_pem = config.DecodeHexToString(config.user_cert_hex);
+            user_key_pem = config.DecodeHexToString(config.user_key_hex);
+            has_client_certs = true;
+        }
+        
+        if (has_client_certs) {
             cass_ssl_set_cert(ssl, user_cert_pem.c_str());
             cass_ssl_set_private_key(ssl, user_key_pem.c_str(), ""); // No password for now
         }

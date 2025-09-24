@@ -1,6 +1,6 @@
 # DuckDB Cassandra Extension
 
-This extension allows [DuckDB](https://duckdb.org) to query data from Apache Cassandra clusters.
+This extension allows [DuckDB](https://duckdb.org) to query data from Apache Cassandra clusters, it supports most C* databases - Cassandra, ScyllaDB and AstraDB (vectorless).
 
 ## Status
 

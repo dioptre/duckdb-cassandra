@@ -6,6 +6,10 @@ This extension allows [DuckDB](https://duckdb.org) to query data from Apache Cas
 
 - ALPHA
 
+## Getting Started
+
+Look at https://github.com/dioptre/duckdb-cassandra/blob/main/test.sh for a comprehensive example. Certificates if required, need to be encoded and can be extractd from your bundle. See the test/ direcectory for examples of certificates that are included/required in the Secure Connect Bundle (SCB).
+
 ## Features
 
 ```sql

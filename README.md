@@ -6,9 +6,7 @@ This extension allows [DuckDB](https://duckdb.org) to query data from Apache Cas
 
 - ALPHA
 
-## Planned Features
-
-Once complete, this extension will provide:
+## Features
 
 ```sql
 -- Install and load the extension
@@ -18,8 +16,8 @@ LOAD 'cassandra';
 -- Attach a Cassandra cluster
 ATTACH 'host=127.0.0.1 port=9042 keyspace=my_keyspace' AS cassandra (TYPE cassandra);
 
--- Query tables (NOT YET)
--- SELECT * FROM cassandra.my_keyspace.my_table;
+-- Query tables
+SELECT * FROM cassandra.my_keyspace.my_table;
 
 -- Direct table scan
 SELECT * FROM cassandra_scan('my_keyspace.my_table', 
@@ -27,8 +25,8 @@ SELECT * FROM cassandra_scan('my_keyspace.my_table',
     port=9042,
     filter='id > 1000');
 
--- Execute CQL queries (NOT YET)
--- SELECT * FROM cassandra_query('SELECT * FROM my_keyspace.my_table WHERE token(id) > 0');
+-- Execute CQL queries
+SELECT * FROM cassandra_query('SELECT * FROM my_keyspace.my_table WHERE token(id) > 0');
 ```
 
 ## Building

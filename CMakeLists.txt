@@ -31,6 +31,8 @@ execute_process(
         -DCASS_USE_ZLIB=ON
         -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
         -DCMAKE_INSTALL_PREFIX=${DATASTAX_INSTALL_DIR}
+        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+        -DVCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}
         -S ${CMAKE_CURRENT_SOURCE_DIR}/external/datastax-cpp-driver
         -B ${DATASTAX_BUILD_DIR}
     RESULT_VARIABLE DATASTAX_CONFIG_RESULT
@@ -51,6 +53,11 @@ if(NOT DATASTAX_BUILD_RESULT EQUAL 0)
 endif()
 
 message("DataStax C++ driver built successfully")
+
+# Find vcpkg dependencies
+find_package(OpenSSL REQUIRED)
+find_package(libuv CONFIG REQUIRED)
+find_package(ZLIB REQUIRED)
 
 include_directories(src/include)
 include_directories(${DATASTAX_INSTALL_DIR}/include)
@@ -78,14 +85,14 @@ function(link_libraries_to_extension target_name)
         ${target_name}
         # Static DataStax C++ driver
         ${DATASTAX_INSTALL_DIR}/lib/libcassandra_static.a
-        # Required system dependencies for DataStax driver
-        /opt/homebrew/lib/libuv.dylib
-        /opt/homebrew/lib/libssl.dylib
-        /opt/homebrew/lib/libcrypto.dylib
-        -lz
+        # Required dependencies from vcpkg
+        $<IF:$<TARGET_EXISTS:libuv::uv_a>,libuv::uv_a,libuv::uv>
+        OpenSSL::SSL
+        OpenSSL::Crypto
+        ZLIB::ZLIB
         # System libraries
-        -lpthread
-        -ldl
+        $<$<PLATFORM_ID:Linux>:-lpthread>
+        $<$<PLATFORM_ID:Linux>:-ldl>
     )
 endfunction()
 

@@ -12,3 +12,6 @@
 [submodule "external/duckdb"]
 	path = external/duckdb
 	url = https://github.com/duckdb/duckdb.git
+[submodule "external/community-extensions"]
+	path = external/community-extensions
+	url = https://github.com/duckdb/community-extensions.git

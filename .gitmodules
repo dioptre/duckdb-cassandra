@@ -11,4 +11,4 @@
 	url = https://github.com/dioptre/datastax-cpp-driver.git
 [submodule "external/community-extensions"]
 	path = external/community-extensions
-	url = https://github.com/duckdb/community-extensions.git
+	url = https://github.com/dioptre/duckdb-community-extensions.git

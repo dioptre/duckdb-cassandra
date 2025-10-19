@@ -18,23 +18,33 @@ set(DATASTAX_INSTALL_DIR ${CMAKE_BINARY_DIR}/datastax-install)
 
 message("Building DataStax C++ driver statically...")
 
-# Configure DataStax driver
+# Configure DataStax driver with cross-compilation support
+set(DATASTAX_CMAKE_ARGS
+    -DCASS_BUILD_STATIC=ON
+    -DCASS_BUILD_SHARED=OFF
+    -DCASS_BUILD_EXAMPLES=OFF
+    -DCASS_BUILD_TESTS=OFF
+    -DCASS_BUILD_INTEGRATION_TESTS=OFF
+    -DCASS_BUILD_UNIT_TESTS=OFF
+    -DCASS_USE_OPENSSL=ON
+    -DCASS_USE_ZLIB=ON
+    -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+    -DCMAKE_INSTALL_PREFIX=${DATASTAX_INSTALL_DIR}
+    -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
+    -DVCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}
+    -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
+    -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+)
+
+# Handle macOS cross-compilation
+if(CMAKE_OSX_ARCHITECTURES)
+    list(APPEND DATASTAX_CMAKE_ARGS -DCMAKE_OSX_ARCHITECTURES=${CMAKE_OSX_ARCHITECTURES})
+    message(STATUS "Building DataStax driver for macOS architecture: ${CMAKE_OSX_ARCHITECTURES}")
+endif()
+
 execute_process(
     COMMAND ${CMAKE_COMMAND}
-        -DCASS_BUILD_STATIC=ON
-        -DCASS_BUILD_SHARED=OFF
-        -DCASS_BUILD_EXAMPLES=OFF
-        -DCASS_BUILD_TESTS=OFF
-        -DCASS_BUILD_INTEGRATION_TESTS=OFF
-        -DCASS_BUILD_UNIT_TESTS=OFF
-        -DCASS_USE_OPENSSL=ON
-        -DCASS_USE_ZLIB=ON
-        -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-        -DCMAKE_INSTALL_PREFIX=${DATASTAX_INSTALL_DIR}
-        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
-        -DVCPKG_TARGET_TRIPLET=${VCPKG_TARGET_TRIPLET}
-        -DCMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH}
-        -DCMAKE_POSITION_INDEPENDENT_CODE=ON
+        ${DATASTAX_CMAKE_ARGS}
         -S ${CMAKE_CURRENT_SOURCE_DIR}/external/datastax-cpp-driver
         -B ${DATASTAX_BUILD_DIR}
     RESULT_VARIABLE DATASTAX_CONFIG_RESULT
@@ -64,6 +74,13 @@ find_package(ZLIB REQUIRED)
 include_directories(src/include)
 include_directories(${DATASTAX_INSTALL_DIR}/include)
 
+# Determine DataStax library name based on platform
+if(WIN32)
+    set(DATASTAX_STATIC_LIB ${DATASTAX_INSTALL_DIR}/lib/cassandra_static.lib)
+else()
+    set(DATASTAX_STATIC_LIB ${DATASTAX_INSTALL_DIR}/lib/libcassandra_static.a)
+endif()
+
 set(EXTENSION_SOURCES
     src/cassandra_extension.cpp
     src/cassandra_client.cpp
@@ -86,15 +103,20 @@ function(link_libraries_to_extension target_name)
     target_link_libraries(
         ${target_name}
         # Static DataStax C++ driver
-        ${DATASTAX_INSTALL_DIR}/lib/libcassandra_static.a
+        ${DATASTAX_STATIC_LIB}
         # Required dependencies from vcpkg
         $<IF:$<TARGET_EXISTS:libuv::uv_a>,libuv::uv_a,libuv::uv>
         OpenSSL::SSL
         OpenSSL::Crypto
         ZLIB::ZLIB
-        # System libraries
+        # Platform-specific system libraries
         $<$<PLATFORM_ID:Linux>:-lpthread>
         $<$<PLATFORM_ID:Linux>:-ldl>
+        $<$<PLATFORM_ID:Windows>:ws2_32>
+        $<$<PLATFORM_ID:Windows>:iphlpapi>
+        $<$<PLATFORM_ID:Windows>:psapi>
+        $<$<PLATFORM_ID:Windows>:crypt32>
+        $<$<PLATFORM_ID:Windows>:userenv>
     )
 endfunction()
 

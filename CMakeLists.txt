@@ -123,6 +123,7 @@ function(link_libraries_to_extension target_name)
         $<$<PLATFORM_ID:Windows>:psapi>
         $<$<PLATFORM_ID:Windows>:crypt32>
         $<$<PLATFORM_ID:Windows>:userenv>
+        $<$<PLATFORM_ID:Windows>:version>
     )
 endfunction()
 

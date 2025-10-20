@@ -98,6 +98,12 @@ set(EXTENSION_SOURCES
 build_static_extension(${TARGET_NAME} ${EXTENSION_SOURCES})
 build_loadable_extension(${TARGET_NAME} " " ${EXTENSION_SOURCES})
 
+# On Windows, define CASS_STATIC to link with static library
+if(WIN32)
+    target_compile_definitions(${EXTENSION_NAME} PRIVATE CASS_STATIC)
+    target_compile_definitions(${LOADABLE_EXTENSION_NAME} PRIVATE CASS_STATIC)
+endif()
+
 # Link libraries to the extensions
 function(link_libraries_to_extension target_name)
     target_link_libraries(
